@@ -7,16 +7,17 @@ Revises: 94b6b0751ebe
 Create Date: 2026-03-21 10:00:00.000000
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "e1f2a3b4c5d6"
-down_revision: Union[str, None] = "94b6b0751ebe"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "94b6b0751ebe"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -29,9 +30,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["source_menu_id"], ["menus.id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["source_menu_id"], ["menus.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
@@ -54,21 +53,13 @@ def upgrade() -> None:
         sa.Column("recipe_quantity_amount", sa.Float(), nullable=True),
         sa.Column("recipe_quantity_unit", sa.String(), nullable=True),
         sa.Column("cost_amount", sa.Float(), nullable=False),
-        sa.Column(
-            "cost_currency", sa.String(), nullable=False, server_default="RUB"
-        ),
-        sa.Column(
-            "purchased", sa.Boolean(), nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "item_order", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("cost_currency", sa.String(), nullable=False, server_default="RUB"),
+        sa.Column("purchased", sa.Boolean(), nullable=False, server_default="0"),
+        sa.Column("item_order", sa.Integer(), nullable=False, server_default="0"),
         sa.ForeignKeyConstraint(
             ["shopping_list_id"], ["shopping_lists.id"], ondelete="CASCADE"
         ),
-        sa.ForeignKeyConstraint(
-            ["product_id"], ["products.id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["product_id"], ["products.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
 

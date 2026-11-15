@@ -33,22 +33,30 @@ class ProductCsvImporter:
                     f"Строка {i}: отсутствуют обязательные поля: {', '.join(sorted(missing))}"
                 )
             if not row.get("name", "").strip():
-                raise ImportValidationError(f"Строка {i}: поле 'name' не может быть пустым")
+                raise ImportValidationError(
+                    f"Строка {i}: поле 'name' не может быть пустым"
+                )
 
             try:
                 price_amount = Decimal(row["price_amount"])
             except InvalidOperation:
-                raise ImportValidationError(f"Строка {i}: некорректное значение 'price_amount'")
+                raise ImportValidationError(
+                    f"Строка {i}: некорректное значение 'price_amount'"
+                )
 
             try:
                 category_id = int(row["category_id"])
             except ValueError:
-                raise ImportValidationError(f"Строка {i}: некорректное значение 'category_id'")
+                raise ImportValidationError(
+                    f"Строка {i}: некорректное значение 'category_id'"
+                )
 
             try:
                 conversion_factor = float(row.get("conversion_factor") or 1.0)
             except ValueError:
-                raise ImportValidationError(f"Строка {i}: некорректное значение 'conversion_factor'")
+                raise ImportValidationError(
+                    f"Строка {i}: некорректное значение 'conversion_factor'"
+                )
 
             raw_id = int(row.get("id") or 0)
             existing = self._repo.get_by_id(ProductId(raw_id)) if raw_id > 0 else None

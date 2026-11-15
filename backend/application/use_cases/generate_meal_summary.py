@@ -1,6 +1,6 @@
 """Use case: generate a meal summary for a menu."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from backend.domain.entities.menu import MenuSlot
 from backend.domain.exceptions import EntityNotFoundError
@@ -37,7 +37,9 @@ class MealSummaryRecipe:
 class MealSummaryProduct:
     product_id: ProductId
     product_name: str
-    occurrences: list[dict]  # [{"day": int, "meal_type": str, "quantity": float, "unit": str, "slot_index": int}]
+    occurrences: list[
+        dict
+    ]  # [{"day": int, "meal_type": str, "quantity": float, "unit": str, "slot_index": int}]
     total_quantity: float
     unit: str
 
@@ -111,13 +113,15 @@ class GenerateMealSummary:
                     )
 
                 total_servings += servings_for_slot
-                occurrences.append(MealOccurrence(
-                    day=slot.day,
-                    meal_type_id=int(slot.meal_type_id),
-                    servings=servings_for_slot,
-                    pieces_override=slot.pieces_override,
-                    slot_index=idx,
-                ))
+                occurrences.append(
+                    MealOccurrence(
+                        day=slot.day,
+                        meal_type_id=int(slot.meal_type_id),
+                        servings=servings_for_slot,
+                        pieces_override=slot.pieces_override,
+                        slot_index=idx,
+                    )
+                )
 
             # Calculate scale factor for total servings
             if recipe.is_pieces_mode:
@@ -141,14 +145,16 @@ class GenerateMealSummary:
                     "pieces_per_portion": recipe.pieces_per_portion,
                 }
 
-            recipe_summaries.append(MealSummaryRecipe(
-                recipe_id=recipe_id,
-                recipe_name=recipe.name,
-                occurrences=occurrences,
-                total_servings=total_servings,
-                pieces_info=pieces_info,
-                ingredients=ingredients,
-            ))
+            recipe_summaries.append(
+                MealSummaryRecipe(
+                    recipe_id=recipe_id,
+                    recipe_name=recipe.name,
+                    occurrences=occurrences,
+                    total_servings=total_servings,
+                    pieces_info=pieces_info,
+                    ingredients=ingredients,
+                )
+            )
 
         # Build product summaries
         product_summaries: list[MealSummaryProduct] = []
@@ -166,21 +172,25 @@ class GenerateMealSummary:
                 u = slot.unit or ""
                 total_quantity += qty
                 unit = u  # last wins (all should be same unit)
-                occurrences_list.append({
-                    "day": slot.day,
-                    "meal_type_id": int(slot.meal_type_id),
-                    "quantity": qty,
-                    "unit": u,
-                    "slot_index": idx,
-                })
+                occurrences_list.append(
+                    {
+                        "day": slot.day,
+                        "meal_type_id": int(slot.meal_type_id),
+                        "quantity": qty,
+                        "unit": u,
+                        "slot_index": idx,
+                    }
+                )
 
-            product_summaries.append(MealSummaryProduct(
-                product_id=product_id,
-                product_name=product.name,
-                occurrences=occurrences_list,
-                total_quantity=total_quantity,
-                unit=unit,
-            ))
+            product_summaries.append(
+                MealSummaryProduct(
+                    product_id=product_id,
+                    product_name=product.name,
+                    occurrences=occurrences_list,
+                    total_quantity=total_quantity,
+                    unit=unit,
+                )
+            )
 
         return MealSummaryResponse(
             menu_id=menu.id,

@@ -56,6 +56,6 @@ class OrmRefreshTokenRepository(RefreshTokenRepository):
     def revoke_all_for_user(self, user_id: UserId) -> None:
         self._session.query(RefreshTokenRow).filter(
             RefreshTokenRow.user_id == int(user_id),
-            RefreshTokenRow.revoked == False,  # noqa: E712
+            RefreshTokenRow.revoked == False,
         ).update({"revoked": True})
         self._session.commit()

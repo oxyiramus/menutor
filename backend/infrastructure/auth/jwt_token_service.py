@@ -16,7 +16,8 @@ class JwtTokenService(TokenService):
     def create_access_token(self, user_id: UserId) -> str:
         payload = {
             "sub": str(int(user_id)),
-            "exp": datetime.now(UTC) + timedelta(minutes=int(os.environ.get("ACCESS_TOKEN_MINUTES", 30))),
+            "exp": datetime.now(UTC)
+            + timedelta(minutes=int(os.environ.get("ACCESS_TOKEN_MINUTES", "30"))),
             "type": "access",
         }
         return jwt.encode(payload, self._secret, algorithm="HS256")

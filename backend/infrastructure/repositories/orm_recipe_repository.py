@@ -37,11 +37,15 @@ class OrmRecipeRepository(
         return RecipeId(raw_id)
 
     @staticmethod
-    def _ingredients_to_rows(ingredients: list[RecipeIngredient]) -> list[RecipeIngredientRow]:
+    def _ingredients_to_rows(
+        ingredients: list[RecipeIngredient],
+    ) -> list[RecipeIngredientRow]:
         return [
             RecipeIngredientRow(
                 product_id=int(ing.product_id) if ing.product_id is not None else None,
-                sub_recipe_id=int(ing.sub_recipe_id) if ing.sub_recipe_id is not None else None,
+                sub_recipe_id=int(ing.sub_recipe_id)
+                if ing.sub_recipe_id is not None
+                else None,
                 amount=ing.quantity.amount,
                 unit=ing.quantity.unit,
                 ingredient_order=ing.order,
@@ -91,8 +95,12 @@ class OrmRecipeRepository(
             servings=row.servings,
             ingredients=[
                 RecipeIngredient(
-                    product_id=ProductId(r.product_id) if r.product_id is not None else None,
-                    sub_recipe_id=RecipeId(r.sub_recipe_id) if r.sub_recipe_id is not None else None,
+                    product_id=ProductId(r.product_id)
+                    if r.product_id is not None
+                    else None,
+                    sub_recipe_id=RecipeId(r.sub_recipe_id)
+                    if r.sub_recipe_id is not None
+                    else None,
                     quantity=Quantity(r.amount, r.unit),
                     order=r.ingredient_order,
                 )
@@ -165,9 +173,7 @@ class OrmRecipeRepository(
         )
         return [self._row_to_entity(r) for r in rows]
 
-    def find_parents_of(
-        self, sub_recipe_id: RecipeId, user_id: UserId
-    ) -> list[Recipe]:
+    def find_parents_of(self, sub_recipe_id: RecipeId, user_id: UserId) -> list[Recipe]:
         rows = (
             self._session.query(RecipeRow)
             .join(

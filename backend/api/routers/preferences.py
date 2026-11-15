@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.api.auth import get_current_user
@@ -17,8 +19,9 @@ router = APIRouter(prefix="/preferences", tags=["preferences"])
 
 @router.get("", response_model=list[PreferenceResponse])
 def list_preferences(
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    *,
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[PreferenceResponse]:
     prefs = container.list_preferences.execute(user.id)
     return [preference_to_response(p) for p in prefs]
@@ -26,9 +29,10 @@ def list_preferences(
 
 @router.get("/{preference_id}", response_model=PreferenceResponse)
 def get_preference(
+    *,
     preference_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> PreferenceResponse:
     pref = container.get_preference.execute(PreferenceId(preference_id), user.id)
     if pref is None:
@@ -36,13 +40,12 @@ def get_preference(
     return preference_to_response(pref)
 
 
-@router.post(
-    "", response_model=PreferenceResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("", response_model=PreferenceResponse, status_code=status.HTTP_201_CREATED)
 def create_preference(
+    *,
     body: PreferenceCreate,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> PreferenceResponse:
     data = schema_to_preference_data(body)
     pref = container.create_preference.execute(data, user.id)
@@ -51,10 +54,11 @@ def create_preference(
 
 @router.put("/{preference_id}", response_model=PreferenceResponse)
 def update_preference(
+    *,
     preference_id: int,
     body: PreferenceUpdate,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> PreferenceResponse:
     data = schema_to_preference_data(body)
     pref = container.update_preference.execute(
@@ -65,8 +69,9 @@ def update_preference(
 
 @router.delete("/{preference_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_preference(
+    *,
     preference_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     container.delete_preference.execute(PreferenceId(preference_id), user.id)

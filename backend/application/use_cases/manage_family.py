@@ -21,7 +21,9 @@ class FamilyMemberData:
 
 
 def _build_member(
-    id: FamilyMemberId, data: FamilyMemberData, user_id: UserId,
+    id: FamilyMemberId,
+    data: FamilyMemberData,
+    user_id: UserId,
 ) -> FamilyMember:
     return FamilyMember(
         id=id,

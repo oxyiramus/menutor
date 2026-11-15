@@ -5,16 +5,17 @@ Revises: c3d4e5f6a7b8
 Create Date: 2026-03-18 13:13:36.110314
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "da00777f78e8"
-down_revision: Union[str, None] = "c3d4e5f6a7b8"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "c3d4e5f6a7b8"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -33,9 +34,7 @@ def upgrade() -> None:
         batch_op.add_column(
             sa.Column("id", sa.Integer(), autoincrement=True, nullable=False)
         )
-        batch_op.add_column(
-            sa.Column("sub_recipe_id", sa.Integer(), nullable=True)
-        )
+        batch_op.add_column(sa.Column("sub_recipe_id", sa.Integer(), nullable=True))
         batch_op.create_foreign_key(
             "fk_recipe_ingredients_sub_recipe_id",
             "recipes",
@@ -54,9 +53,13 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     with op.batch_alter_table("recipe_ingredients", recreate="always") as batch_op:
-        batch_op.drop_constraint("fk_recipe_ingredients_sub_recipe_id", type_="foreignkey")
+        batch_op.drop_constraint(
+            "fk_recipe_ingredients_sub_recipe_id", type_="foreignkey"
+        )
         batch_op.drop_column("sub_recipe_id")
         batch_op.alter_column("product_id", existing_type=sa.Integer(), nullable=False)
         batch_op.drop_column("id")
-        batch_op.create_primary_key("pk_recipe_ingredients", ["recipe_id", "product_id"])
+        batch_op.create_primary_key(
+            "pk_recipe_ingredients", ["recipe_id", "product_id"]
+        )
     op.execute("DELETE FROM units WHERE name = 'serv'")

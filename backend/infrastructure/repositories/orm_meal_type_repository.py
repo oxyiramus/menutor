@@ -72,7 +72,7 @@ class OrmMealTypeRepository(
             self._session.query(MealTypeRow)
             .filter(
                 MealTypeRow.user_id == int(user_id),
-                MealTypeRow.is_system == False,  # noqa: E712
+                MealTypeRow.is_system == False,
             )
             .count()
         )

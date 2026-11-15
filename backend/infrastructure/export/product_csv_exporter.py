@@ -1,6 +1,6 @@
 import csv
 import io
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.domain.entities.product import Product
 
@@ -8,9 +8,17 @@ from backend.domain.entities.product import Product
 class ProductCsvExporter:
     """Exports Product entities to CSV bytes."""
 
-    _HEADERS = [
-        "id", "name", "category_id", "recipe_unit", "purchase_unit",
-        "price_amount", "price_currency", "brand", "supplier", "conversion_factor",
+    _HEADERS: ClassVar[list[str]] = [
+        "id",
+        "name",
+        "category_id",
+        "recipe_unit",
+        "purchase_unit",
+        "price_amount",
+        "price_currency",
+        "brand",
+        "supplier",
+        "conversion_factor",
     ]
 
     def export_bytes(self, entities: list[Any]) -> bytes:
@@ -19,18 +27,20 @@ class ProductCsvExporter:
         writer.writerow(self._HEADERS)
         for p in entities:
             product: Product = p
-            writer.writerow([
-                product.id,
-                product.name,
-                product.category_id,
-                product.recipe_unit,
-                product.purchase_unit,
-                str(product.price_per_purchase_unit.amount),
-                product.price_per_purchase_unit.currency,
-                product.brand,
-                product.supplier,
-                product.conversion_factor,
-            ])
+            writer.writerow(
+                [
+                    product.id,
+                    product.name,
+                    product.category_id,
+                    product.recipe_unit,
+                    product.purchase_unit,
+                    str(product.price_per_purchase_unit.amount),
+                    product.price_per_purchase_unit.currency,
+                    product.brand,
+                    product.supplier,
+                    product.conversion_factor,
+                ]
+            )
         return buf.getvalue().encode("utf-8")
 
     def example_bytes(self) -> bytes:

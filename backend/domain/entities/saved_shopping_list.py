@@ -40,7 +40,7 @@ class SavedShoppingList:
 
     def total_cost(self) -> Money:
         if not self.items:
-            return Money(Decimal("0"))
+            return Money(Decimal(0))
         total = self.items[0].cost
         for item in self.items[1:]:
             total = total + item.cost

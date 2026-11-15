@@ -42,9 +42,7 @@ class WeeklyMenu:
 
     def add_or_replace_slot(self, slot: MenuSlot) -> None:
         """Add or replace an item (upsert by day+meal_type_id+item_id)."""
-        existing = next(
-            (s for s in self.slots if self._same_item(s, slot)), None
-        )
+        existing = next((s for s in self.slots if self._same_item(s, slot)), None)
         if existing is not None and slot.position == 0:
             slot.position = existing.position
         elif existing is None and slot.position == 0:
@@ -114,6 +112,7 @@ class WeeklyMenu:
         position: int | None = None,
     ) -> None:
         """Remove a specific item from a (day, meal_type_id) cell."""
+
         def matches(s: MenuSlot) -> bool:
             if s.day != day or s.meal_type_id != meal_type_id:
                 return False
@@ -121,9 +120,7 @@ class WeeklyMenu:
                 return False
             if recipe_id is not None and s.recipe_id == recipe_id:
                 return True
-            if product_id is not None and s.product_id == product_id:
-                return True
-            return False
+            return product_id is not None and s.product_id == product_id
 
         self.slots = [s for s in self.slots if not matches(s)]
 

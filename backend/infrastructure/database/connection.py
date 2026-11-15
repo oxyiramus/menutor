@@ -45,16 +45,20 @@ def _migrate_menu_slots(conn) -> None:  # type: ignore[no-untyped-def]
     columns = {row[1] for row in info}
     if "product_id" in columns:
         return
-    conn.execute(text("""
+    conn.execute(
+        text("""
         CREATE TABLE IF NOT EXISTS _menu_slots_backup (
             menu_id INTEGER, day INTEGER, meal_type TEXT,
             recipe_id INTEGER, servings_override REAL
         )
-    """))
-    conn.execute(text(
-        "INSERT INTO _menu_slots_backup "
-        "SELECT menu_id, day, meal_type, recipe_id, servings_override FROM menu_slots"
-    ))
+    """)
+    )
+    conn.execute(
+        text(
+            "INSERT INTO _menu_slots_backup "
+            "SELECT menu_id, day, meal_type, recipe_id, servings_override FROM menu_slots"
+        )
+    )
     conn.execute(text("DROP TABLE menu_slots"))
     conn.commit()
 
@@ -62,27 +66,29 @@ def _migrate_menu_slots(conn) -> None:  # type: ignore[no-untyped-def]
 def _migrate_products_supplier(conn) -> None:  # type: ignore[no-untyped-def]
     info = conn.execute(text("PRAGMA table_info(products)")).fetchall()
     if "supplier" not in {row[1] for row in info}:
-        conn.execute(text(
-            "ALTER TABLE products ADD COLUMN supplier TEXT NOT NULL DEFAULT ''"
-        ))
+        conn.execute(
+            text("ALTER TABLE products ADD COLUMN supplier TEXT NOT NULL DEFAULT ''")
+        )
         conn.commit()
 
 
 def _migrate_recipes_weight(conn) -> None:  # type: ignore[no-untyped-def]
     info = conn.execute(text("PRAGMA table_info(recipes)")).fetchall()
     if "weight" not in {row[1] for row in info}:
-        conn.execute(text(
-            "ALTER TABLE recipes ADD COLUMN weight INTEGER NOT NULL DEFAULT 0"
-        ))
+        conn.execute(
+            text("ALTER TABLE recipes ADD COLUMN weight INTEGER NOT NULL DEFAULT 0")
+        )
         conn.commit()
 
 
 def _migrate_menu_slots_position(conn) -> None:  # type: ignore[no-untyped-def]
     info = conn.execute(text("PRAGMA table_info(menu_slots)")).fetchall()
     if "slot_position" not in {row[1] for row in info}:
-        conn.execute(text(
-            "ALTER TABLE menu_slots ADD COLUMN slot_position INTEGER NOT NULL DEFAULT 0"
-        ))
+        conn.execute(
+            text(
+                "ALTER TABLE menu_slots ADD COLUMN slot_position INTEGER NOT NULL DEFAULT 0"
+            )
+        )
         conn.commit()
 
 
@@ -117,12 +123,14 @@ def _restore_sqlite_menu_slots_backup(engine: Engine) -> None:
             )
         ).fetchone()
         if backup_exists:
-            conn.execute(text(
-                "INSERT INTO menu_slots "
-                "(menu_id, day, meal_type, recipe_id, servings_override) "
-                "SELECT menu_id, day, meal_type, recipe_id, servings_override "
-                "FROM _menu_slots_backup"
-            ))
+            conn.execute(
+                text(
+                    "INSERT INTO menu_slots "
+                    "(menu_id, day, meal_type, recipe_id, servings_override) "
+                    "SELECT menu_id, day, meal_type, recipe_id, servings_override "
+                    "FROM _menu_slots_backup"
+                )
+            )
             conn.execute(text("DROP TABLE _menu_slots_backup"))
             conn.commit()
 
@@ -156,34 +164,40 @@ def _seed_defaults_sqlite(session: Session) -> None:
     session.execute(
         text("INSERT OR IGNORE INTO units (name, unit_group) VALUES (:n, :g)"),
         [
-            {"n": "g",    "g": "weight"},
-            {"n": "kg",   "g": "weight"},
-            {"n": "ml",   "g": "volume"},
-            {"n": "l",    "g": "volume"},
-            {"n": "tsp",  "g": "volume"},
+            {"n": "g", "g": "weight"},
+            {"n": "kg", "g": "weight"},
+            {"n": "ml", "g": "volume"},
+            {"n": "l", "g": "volume"},
+            {"n": "tsp", "g": "volume"},
             {"n": "tbsp", "g": "volume"},
-            {"n": "pcs",  "g": "count_pcs"},
-            {"n": "box",  "g": "count_box"},
+            {"n": "pcs", "g": "count_pcs"},
+            {"n": "box", "g": "count_box"},
             {"n": "pack", "g": "count_pack"},
             {"n": "serv", "g": "servings"},
         ],
     )
     session.execute(
-        text(
-            "INSERT OR IGNORE INTO recipe_categories (name, active) VALUES (:n, 1)"
-        ),
+        text("INSERT OR IGNORE INTO recipe_categories (name, active) VALUES (:n, 1)"),
         [
-            {"n": "Завтраки"}, {"n": "Обеды"}, {"n": "Ужины"},
-            {"n": "Основные"}, {"n": "Салаты"}, {"n": "Десерты"},
+            {"n": "Завтраки"},
+            {"n": "Обеды"},
+            {"n": "Ужины"},
+            {"n": "Основные"},
+            {"n": "Салаты"},
+            {"n": "Десерты"},
         ],
     )
     session.execute(
-        text(
-            "INSERT OR IGNORE INTO product_categories (name, active) VALUES (:n, 1)"
-        ),
+        text("INSERT OR IGNORE INTO product_categories (name, active) VALUES (:n, 1)"),
         [
-            {"n": "Сыпучие"}, {"n": "Молочные"}, {"n": "Мясо"}, {"n": "Овощи"},
-            {"n": "Фрукты"}, {"n": "Консервы"}, {"n": "Напитки"}, {"n": "Прочее"},
+            {"n": "Сыпучие"},
+            {"n": "Молочные"},
+            {"n": "Мясо"},
+            {"n": "Овощи"},
+            {"n": "Фрукты"},
+            {"n": "Консервы"},
+            {"n": "Напитки"},
+            {"n": "Прочее"},
         ],
     )
 
@@ -195,14 +209,14 @@ def _seed_defaults_pg(session: Session) -> None:
             "ON CONFLICT (name) DO NOTHING"
         ),
         [
-            {"n": "g",    "g": "weight"},
-            {"n": "kg",   "g": "weight"},
-            {"n": "ml",   "g": "volume"},
-            {"n": "l",    "g": "volume"},
-            {"n": "tsp",  "g": "volume"},
+            {"n": "g", "g": "weight"},
+            {"n": "kg", "g": "weight"},
+            {"n": "ml", "g": "volume"},
+            {"n": "l", "g": "volume"},
+            {"n": "tsp", "g": "volume"},
             {"n": "tbsp", "g": "volume"},
-            {"n": "pcs",  "g": "count_pcs"},
-            {"n": "box",  "g": "count_box"},
+            {"n": "pcs", "g": "count_pcs"},
+            {"n": "box", "g": "count_box"},
             {"n": "pack", "g": "count_pack"},
             {"n": "serv", "g": "servings"},
         ],
@@ -213,8 +227,12 @@ def _seed_defaults_pg(session: Session) -> None:
             "ON CONFLICT (name) DO NOTHING"
         ),
         [
-            {"n": "Завтраки"}, {"n": "Обеды"}, {"n": "Ужины"},
-            {"n": "Основные"}, {"n": "Салаты"}, {"n": "Десерты"},
+            {"n": "Завтраки"},
+            {"n": "Обеды"},
+            {"n": "Ужины"},
+            {"n": "Основные"},
+            {"n": "Салаты"},
+            {"n": "Десерты"},
         ],
     )
     session.execute(
@@ -223,7 +241,13 @@ def _seed_defaults_pg(session: Session) -> None:
             "ON CONFLICT (name) DO NOTHING"
         ),
         [
-            {"n": "Сыпучие"}, {"n": "Молочные"}, {"n": "Мясо"}, {"n": "Овощи"},
-            {"n": "Фрукты"}, {"n": "Консервы"}, {"n": "Напитки"}, {"n": "Прочее"},
+            {"n": "Сыпучие"},
+            {"n": "Молочные"},
+            {"n": "Мясо"},
+            {"n": "Овощи"},
+            {"n": "Фрукты"},
+            {"n": "Консервы"},
+            {"n": "Напитки"},
+            {"n": "Прочее"},
         ],
     )

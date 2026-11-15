@@ -52,9 +52,7 @@ class AssignPreferencesToMember:
         has_allowed = False
         for p in preferences:
             effective_mode = (
-                PreferenceMode.BLOCKED
-                if p.type == PreferenceType.ALLERGY
-                else p.mode
+                PreferenceMode.BLOCKED if p.type == PreferenceType.ALLERGY else p.mode
             )
             if effective_mode == PreferenceMode.BLOCKED:
                 has_blocked = True

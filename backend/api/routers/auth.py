@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.api.auth import get_current_user
@@ -28,8 +30,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
 def register(
+    *,
     body: RegisterRequest,
-    container: ApplicationContainer = Depends(get_container),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> UserResponse:
     user = container.register_user.execute(
         RegisterData(
@@ -49,8 +52,9 @@ def register(
 
 @router.post("/login", response_model=TokenResponse)
 def login(
+    *,
     body: LoginRequest,
-    container: ApplicationContainer = Depends(get_container),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> TokenResponse:
     pair = container.login_user.execute(
         LoginData(email=body.email, password=body.password)
@@ -63,8 +67,9 @@ def login(
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(
+    *,
     body: RefreshRequest,
-    container: ApplicationContainer = Depends(get_container),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> TokenResponse:
     pair = container.refresh_access_token.execute(body.refresh_token)
     return TokenResponse(
@@ -75,14 +80,15 @@ def refresh(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
+    *,
     body: RefreshRequest,
-    container: ApplicationContainer = Depends(get_container),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> None:
     container.logout_user.execute(body.refresh_token)
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(user: User = Depends(get_current_user)) -> UserResponse:
+def get_me(*, user: Annotated[User, Depends(get_current_user)]) -> UserResponse:
     return UserResponse(
         id=int(user.id),
         email=user.email,
@@ -94,16 +100,18 @@ def get_me(user: User = Depends(get_current_user)) -> UserResponse:
 
 @router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
 def change_password(
+    *,
     body: ChangePasswordRequest,
-    user: User = Depends(get_current_user),
-    container: ApplicationContainer = Depends(get_container),
+    user: Annotated[User, Depends(get_current_user)],
+    container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> None:
     try:
         container.change_password.execute(
-            user, ChangePasswordData(
+            user,
+            ChangePasswordData(
                 current_password=body.current_password,
                 new_password=body.new_password,
-            )
+            ),
         )
     except AuthenticationError as exc:
         raise HTTPException(
@@ -113,9 +121,10 @@ def change_password(
 
 @router.patch("/me", response_model=UserResponse)
 def update_me(
+    *,
     body: UpdateProfileRequest,
-    user: User = Depends(get_current_user),
-    container: ApplicationContainer = Depends(get_container),
+    user: Annotated[User, Depends(get_current_user)],
+    container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> UserResponse:
     updated = container.update_profile.execute(
         user, UpdateProfileData(nickname=body.nickname, password=body.password)

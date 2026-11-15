@@ -1,30 +1,48 @@
+from __future__ import annotations
+
 import csv
 import io
-import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from backend.domain.entities.shopping_list import ShoppingList
 
-_HEADERS = ["category", "name", "recipe_quantity", "unit", "buy_quantity", "cost", "purchased"]
+if TYPE_CHECKING:
+    from _csv import Writer
+
+_HEADERS = [
+    "category",
+    "name",
+    "recipe_quantity",
+    "unit",
+    "buy_quantity",
+    "cost",
+    "purchased",
+]
 
 
 class ShoppingListCsvExporter:
     """Exports a shopping list to CSV."""
 
-    def _write_rows(self, writer: csv.writer, shopping_list: ShoppingList) -> None:  # type: ignore[type-arg]
+    def _write_rows(self, writer: Writer, shopping_list: ShoppingList) -> None:
         writer.writerow(_HEADERS)
         for item in shopping_list.items:
-            rq = item.recipe_quantity if item.recipe_quantity is not None else item.quantity
+            rq = (
+                item.recipe_quantity
+                if item.recipe_quantity is not None
+                else item.quantity
+            )
             bq = item.buy_quantity
-            writer.writerow([
-                item.category,
-                item.product_name,
-                f"{rq.amount:g}",
-                rq.unit,
-                f"{bq.amount:g}",
-                f"{item.cost.amount:.2f}",
-                item.purchased,
-            ])
+            writer.writerow(
+                [
+                    item.category,
+                    item.product_name,
+                    f"{rq.amount:g}",
+                    rq.unit,
+                    f"{bq.amount:g}",
+                    f"{item.cost.amount:.2f}",
+                    item.purchased,
+                ]
+            )
 
     def export(self, shopping_list: ShoppingList, filepath: str) -> None:
         with open(filepath, "w", newline="", encoding="utf-8") as f:

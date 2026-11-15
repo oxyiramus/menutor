@@ -50,11 +50,7 @@ class OrmUserRepository(
         )
 
     def get_by_email(self, email: str) -> User | None:
-        row = (
-            self._session.query(UserRow)
-            .filter(UserRow.email == email)
-            .first()
-        )
+        row = self._session.query(UserRow).filter(UserRow.email == email).first()
         if row is None:
             return None
         return self._row_to_entity(row)

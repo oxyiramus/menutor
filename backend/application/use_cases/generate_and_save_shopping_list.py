@@ -1,7 +1,6 @@
 """Use case: generate a shopping list from a menu and persist it as a SavedShoppingList."""
 
 from datetime import UTC, datetime
-from decimal import Decimal
 
 from backend.domain.entities.saved_shopping_list import (
     SavedShoppingList,
@@ -42,7 +41,7 @@ class GenerateAndSaveShoppingList:
         now = datetime.now(UTC)
         time_str = now.strftime("%H:%M")
         date_str = now.strftime("%d.%m.%Y")
-        name = f'Создано из меню «{menu.name}» {time_str} {date_str}'
+        name = f"Создано из меню «{menu.name}» {time_str} {date_str}"
 
         items = [
             SavedShoppingListItem(

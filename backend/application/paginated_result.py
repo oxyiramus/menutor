@@ -1,13 +1,10 @@
-from dataclasses import dataclass, field
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
+from dataclasses import dataclass
 
 PAGE_SIZE = 25
 
 
 @dataclass
-class PaginatedResult(Generic[T]):
+class PaginatedResult[T]:
     items: list[T]
     total: int
     page: int

@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.api.auth import get_current_user
@@ -26,11 +28,12 @@ router = APIRouter(prefix="/products", tags=["products"])
 
 @router.get("", response_model=PaginatedResponse[ProductResponse])
 def list_products(
+    *,
     page: int | None = Query(None, ge=1),
     search: str = Query(""),
     category_id: int | None = Query(None),
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> PaginatedResponse[ProductResponse]:
     result = container.list_products.execute(
         user.id,
@@ -48,8 +51,9 @@ def list_products(
 
 @router.get("/categories", response_model=list[ActiveCategoryResponse])
 def list_product_categories(
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    *,
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[ActiveCategoryResponse]:
     categories = container.list_product_categories.execute()
     return [active_category_to_response(c) for c in categories]
@@ -57,9 +61,10 @@ def list_product_categories(
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 def create_product(
+    *,
     body: ProductCreate,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> ProductResponse:
     data = schema_to_product_data(body)
     try:
@@ -71,10 +76,11 @@ def create_product(
 
 @router.put("/{product_id}", response_model=ProductResponse)
 def update_product(
+    *,
     product_id: int,
     body: ProductUpdate,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> ProductResponse:
     data = schema_to_product_data(body)
     product = container.edit_product.execute(ProductId(product_id), data, user.id)
@@ -83,10 +89,11 @@ def update_product(
 
 @router.patch("/{product_id}/price", response_model=ProductResponse)
 def update_product_price(
+    *,
     product_id: int,
     body: PriceUpdate,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> ProductResponse:
     product = container.update_product_price.execute(
         ProductId(product_id), Money(body.amount, body.currency), user.id
@@ -96,19 +103,19 @@ def update_product_price(
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_product(
+    *,
     product_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     container.delete_product.execute(ProductId(product_id), user.id)
 
 
 @router.post("/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
 def batch_delete_products(
+    *,
     body: list[int],
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    container.delete_product.execute(
-        [ProductId(pid) for pid in body], user.id
-    )
+    container.delete_product.execute([ProductId(pid) for pid in body], user.id)

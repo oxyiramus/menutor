@@ -62,12 +62,14 @@ class RegisterUser:
             hashed_password=self._hasher.hash(data.password),
         )
         saved_user = self._user_repo.save(user)
-        self._family_repo.save(FamilyMember(
-            id=FamilyMemberId(0),
-            name=saved_user.nickname,
-            portion_multiplier=1.0,
-            user_id=saved_user.id,
-        ))
+        self._family_repo.save(
+            FamilyMember(
+                id=FamilyMemberId(0),
+                name=saved_user.nickname,
+                portion_multiplier=1.0,
+                user_id=saved_user.id,
+            )
+        )
         CreateSystemMealTypes(self._meal_type_repo).execute(saved_user.id)
         return saved_user
 

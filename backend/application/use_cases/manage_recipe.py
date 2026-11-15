@@ -90,7 +90,9 @@ class CreateRecipe(CreateEntity):
             raise DuplicateNameError("рецепт")
         entity = self._build_entity(data, user_id)
         if self._validator is not None:
-            _validate_sub_recipe_ingredients(entity, user_id, self._repo, self._validator)
+            _validate_sub_recipe_ingredients(
+                entity, user_id, self._repo, self._validator
+            )
         return self._repo.save(entity)
 
 
@@ -110,10 +112,13 @@ class EditRecipe(EditEntity):
 
     def execute(self, id: Any, data: Any, user_id: UserId) -> Any:
         from backend.application.use_cases.crud_base import load_owned
+
         load_owned(self._repo, id, user_id, self._label)
         entity = self._build_entity(id, data, user_id)
         if self._validator is not None:
-            _validate_sub_recipe_ingredients(entity, user_id, self._repo, self._validator)
+            _validate_sub_recipe_ingredients(
+                entity, user_id, self._repo, self._validator
+            )
         return self._repo.save(entity)
 
 
@@ -123,9 +128,7 @@ class DeleteRecipeWithDependents:
     def __init__(self, repo: RecipeRepository) -> None:
         self._repo = repo
 
-    def check_dependents(
-        self, recipe_id: RecipeId, user_id: UserId
-    ) -> list[Recipe]:
+    def check_dependents(self, recipe_id: RecipeId, user_id: UserId) -> list[Recipe]:
         """Return parent recipes that reference this recipe as a sub-ingredient."""
         return self._repo.find_parents_of(recipe_id, user_id)
 
@@ -148,7 +151,8 @@ class DeleteRecipeWithDependents:
             parents = self._repo.find_parents_of(recipe_id, user_id)
             for parent in parents:
                 updated_ingredients = [
-                    ing for ing in parent.ingredients
+                    ing
+                    for ing in parent.ingredients
                     if not (ing.is_sub_recipe and ing.sub_recipe_id == recipe_id)
                 ]
                 if len(updated_ingredients) != len(parent.ingredients):

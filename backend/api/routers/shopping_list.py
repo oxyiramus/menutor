@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Response, status
 
 from backend.api.auth import get_current_user
@@ -33,9 +35,10 @@ router = APIRouter(tags=["shopping-list"])
     response_model=SavedShoppingListResponse,
 )
 def generate_shopping_list(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> SavedShoppingListResponse:
     saved = container.generate_and_save_shopping_list.execute(MenuId(menu_id), user.id)
     return saved_shopping_list_to_response(saved)
@@ -46,22 +49,27 @@ def generate_shopping_list(
     response_model=SavedShoppingListResponse,
 )
 def generate_filtered_shopping_list(
+    *,
     menu_id: int,
     body: GenerateFilteredShoppingListRequest,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> SavedShoppingListResponse:
     saved = container.generate_filtered_shopping_list.execute(
-        MenuId(menu_id), user.id, set(body.slot_indices), set(body.excluded_sub_recipe_ids)
+        MenuId(menu_id),
+        user.id,
+        set(body.slot_indices),
+        set(body.excluded_sub_recipe_ids),
     )
     return saved_shopping_list_to_response(saved)
 
 
 @router.post("/menus/{menu_id}/shopping-list/export/text")
 def export_shopping_list_text(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     data, content_type, filename = container.export_shopping_list.execute(
         MenuId(menu_id), user.id, "txt"
@@ -75,9 +83,10 @@ def export_shopping_list_text(
 
 @router.post("/menus/{menu_id}/shopping-list/export/csv")
 def export_shopping_list_csv(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     data, content_type, filename = container.export_shopping_list.execute(
         MenuId(menu_id), user.id, "csv"
@@ -91,9 +100,10 @@ def export_shopping_list_csv(
 
 @router.post("/menus/{menu_id}/shopping-list/export/json")
 def export_shopping_list_json(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     data, content_type, filename = container.export_shopping_list.execute(
         MenuId(menu_id), user.id, "json"
@@ -107,9 +117,10 @@ def export_shopping_list_json(
 
 @router.post("/menus/{menu_id}/shopping-list/export/pdf")
 def export_shopping_list_pdf(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     data, content_type, filename = container.export_shopping_list.execute(
         MenuId(menu_id), user.id, "pdf"
@@ -126,8 +137,9 @@ def export_shopping_list_pdf(
 
 @router.get("/shopping-lists", response_model=list[SavedShoppingListMetaResponse])
 def list_saved_shopping_lists(
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    *,
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[SavedShoppingListMetaResponse]:
     lists = container.list_saved_shopping_lists.execute(user.id)
     return [saved_shopping_list_to_meta(sl) for sl in lists]
@@ -139,8 +151,9 @@ def list_saved_shopping_lists(
     status_code=status.HTTP_201_CREATED,
 )
 def create_saved_shopping_list(
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    *,
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> SavedShoppingListResponse:
     saved = container.create_saved_shopping_list.execute(user.id)
     return saved_shopping_list_to_response(saved)
@@ -148,9 +161,10 @@ def create_saved_shopping_list(
 
 @router.get("/shopping-lists/{list_id}", response_model=SavedShoppingListResponse)
 def get_saved_shopping_list(
+    *,
     list_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> SavedShoppingListResponse:
     saved = container.get_saved_shopping_list.execute(
         SavedShoppingListId(list_id), user.id
@@ -160,10 +174,11 @@ def get_saved_shopping_list(
 
 @router.put("/shopping-lists/{list_id}", response_model=SavedShoppingListResponse)
 def update_saved_shopping_list(
+    *,
     list_id: int,
     body: UpdateSavedShoppingListRequest,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> SavedShoppingListResponse:
     items_data = [schema_to_saved_shopping_list_item_data(item) for item in body.items]
     saved = container.update_saved_shopping_list.execute(
@@ -174,10 +189,11 @@ def update_saved_shopping_list(
 
 @router.patch("/shopping-lists/{list_id}", response_model=SavedShoppingListResponse)
 def rename_saved_shopping_list(
+    *,
     list_id: int,
     body: RenameSavedShoppingListRequest,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> SavedShoppingListResponse:
     saved = container.rename_saved_shopping_list.execute(
         SavedShoppingListId(list_id), body.name, user.id
@@ -187,13 +203,12 @@ def rename_saved_shopping_list(
 
 @router.delete("/shopping-lists/{list_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_saved_shopping_list(
+    *,
     list_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    container.delete_saved_shopping_list.execute(
-        SavedShoppingListId(list_id), user.id
-    )
+    container.delete_saved_shopping_list.execute(SavedShoppingListId(list_id), user.id)
 
 
 @router.post(
@@ -202,9 +217,10 @@ def delete_saved_shopping_list(
     status_code=status.HTTP_201_CREATED,
 )
 def copy_saved_shopping_list(
+    *,
     list_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> SavedShoppingListResponse:
     saved = container.copy_saved_shopping_list.execute(
         SavedShoppingListId(list_id), user.id
@@ -217,10 +233,11 @@ def copy_saved_shopping_list(
     response_model=SavedShoppingListResponse,
 )
 def toggle_item_purchased(
+    *,
     list_id: int,
     item_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> SavedShoppingListResponse:
     saved = container.toggle_item_purchased.execute(
         SavedShoppingListId(list_id),

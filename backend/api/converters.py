@@ -61,7 +61,6 @@ from backend.domain.entities.saved_shopping_list import (
 )
 from backend.domain.entities.shopping_list import ShoppingList, ShoppingListItem
 from backend.domain.services.recipe_cost_calculator import (
-    IngredientCost,
     RecipeCostResult,
 )
 from backend.domain.services.shopping_list_builder import IngredientNode
@@ -83,6 +82,7 @@ from backend.domain.value_objects.types import (
 
 # ── Preference ──────────────────────────────────────────────────────
 
+
 def preference_to_response(pref: Preference) -> PreferenceResponse:
     return PreferenceResponse(
         id=int(pref.id),
@@ -102,10 +102,14 @@ def schema_to_preference_data(body: PreferenceCreate) -> PreferenceData:
         mode=PreferenceMode(body.mode),
         category_ids=[ProductCategoryId(cid) for cid in body.category_ids],
         product_ids=[ProductId(pid) for pid in body.product_ids],
-        recipe_category_ids=[RecipeCategoryId(rcid) for rcid in body.recipe_category_ids],
+        recipe_category_ids=[
+            RecipeCategoryId(rcid) for rcid in body.recipe_category_ids
+        ],
     )
 
+
 # ── Recipe ─────────────────────────────────────────────────────────
+
 
 def recipe_to_response(
     recipe: Recipe,
@@ -118,14 +122,18 @@ def recipe_to_response(
         if ing.is_sub_recipe and sub_recipe_name_lookup is not None:
             assert ing.sub_recipe_id is not None
             sub_name = sub_recipe_name_lookup(ing.sub_recipe_id)
-        ingredients.append(RecipeIngredientSchema(
-            product_id=int(ing.product_id) if ing.product_id is not None else None,
-            sub_recipe_id=int(ing.sub_recipe_id) if ing.sub_recipe_id is not None else None,
-            sub_recipe_name=sub_name,
-            quantity_amount=ing.quantity.amount,
-            quantity_unit=ing.quantity.unit,
-            order=ing.order,
-        ))
+        ingredients.append(
+            RecipeIngredientSchema(
+                product_id=int(ing.product_id) if ing.product_id is not None else None,
+                sub_recipe_id=int(ing.sub_recipe_id)
+                if ing.sub_recipe_id is not None
+                else None,
+                sub_recipe_name=sub_name,
+                quantity_amount=ing.quantity.amount,
+                quantity_unit=ing.quantity.unit,
+                order=ing.order,
+            )
+        )
     return RecipeResponse(
         id=int(recipe.id),
         name=recipe.name,
@@ -139,7 +147,9 @@ def recipe_to_response(
         weight=recipe.weight,
         total_pieces=recipe.total_pieces,
         pieces_per_portion=recipe.pieces_per_portion,
-        cost_per_portion=float(cost_result.cost_per_portion) if cost_result and cost_result.cost_per_portion is not None else None,
+        cost_per_portion=float(cost_result.cost_per_portion)
+        if cost_result and cost_result.cost_per_portion is not None
+        else None,
         cost_currency=cost_result.currency if cost_result else None,
         cost_is_partial=cost_result.is_partial if cost_result else False,
         link=recipe.link,
@@ -149,7 +159,9 @@ def recipe_to_response(
 
 def cost_result_to_preview_response(result: RecipeCostResult) -> CostPreviewResponse:
     return CostPreviewResponse(
-        cost_per_portion=float(result.cost_per_portion) if result.cost_per_portion is not None else None,
+        cost_per_portion=float(result.cost_per_portion)
+        if result.cost_per_portion is not None
+        else None,
         cost_currency=result.currency,
         cost_is_partial=result.is_partial,
         total_cost=float(result.total_cost) if result.total_cost is not None else None,
@@ -171,6 +183,7 @@ def cost_result_to_preview_response(result: RecipeCostResult) -> CostPreviewResp
 
 # ── Product ────────────────────────────────────────────────────────
 
+
 def product_to_response(product: Product) -> ProductResponse:
     return ProductResponse(
         id=int(product.id),
@@ -187,6 +200,7 @@ def product_to_response(product: Product) -> ProductResponse:
 
 
 # ── Menu ───────────────────────────────────────────────────────────
+
 
 def menu_slot_to_schema(slot: MenuSlot) -> MenuSlotSchema:
     return MenuSlotSchema(
@@ -213,6 +227,7 @@ def menu_to_response(menu: WeeklyMenu) -> MenuResponse:
 
 # ── Family ─────────────────────────────────────────────────────────
 
+
 def family_member_to_response(member: FamilyMember) -> FamilyMemberResponse:
     return FamilyMemberResponse(
         id=int(member.id),
@@ -225,8 +240,11 @@ def family_member_to_response(member: FamilyMember) -> FamilyMemberResponse:
 
 # ── Category ───────────────────────────────────────────────────────
 
+
 def category_to_response(cat: Category) -> CategoryResponse:
-    return CategoryResponse(id=cat.id, name=cat.name, active=cat.active, color=cat.color)
+    return CategoryResponse(
+        id=cat.id, name=cat.name, active=cat.active, color=cat.color
+    )
 
 
 def active_category_to_response(cat: ActiveCategory) -> ActiveCategoryResponse:
@@ -234,6 +252,7 @@ def active_category_to_response(cat: ActiveCategory) -> ActiveCategoryResponse:
 
 
 # ── Shopping List ──────────────────────────────────────────────────
+
 
 def money_to_schema(money: Money) -> MoneySchema:
     return MoneySchema(amount=money.amount, currency=money.currency)
@@ -267,7 +286,9 @@ def shopping_list_to_response(sl: ShoppingList) -> ShoppingListResponse:
     )
 
 
-def saved_shopping_item_to_schema(item: SavedShoppingListItem) -> SavedShoppingListItemSchema:
+def saved_shopping_item_to_schema(
+    item: SavedShoppingListItem,
+) -> SavedShoppingListItemSchema:
     return SavedShoppingListItemSchema(
         id=int(item.id),
         product_id=int(item.product_id) if item.product_id is not None else None,
@@ -293,7 +314,9 @@ def saved_shopping_list_to_response(sl: SavedShoppingList) -> SavedShoppingListR
         name=sl.name,
         items=[saved_shopping_item_to_schema(item) for item in sl.items],
         total_cost=money_to_schema(sl.total_cost()),
-        source_menu_id=int(sl.source_menu_id) if sl.source_menu_id is not None else None,
+        source_menu_id=int(sl.source_menu_id)
+        if sl.source_menu_id is not None
+        else None,
         created_at=sl.created_at.isoformat(),
         updated_at=sl.updated_at.isoformat(),
     )
@@ -303,7 +326,9 @@ def saved_shopping_list_to_meta(sl: SavedShoppingList) -> SavedShoppingListMetaR
     return SavedShoppingListMetaResponse(
         id=int(sl.id),
         name=sl.name,
-        source_menu_id=int(sl.source_menu_id) if sl.source_menu_id is not None else None,
+        source_menu_id=int(sl.source_menu_id)
+        if sl.source_menu_id is not None
+        else None,
         created_at=sl.created_at.isoformat(),
         updated_at=sl.updated_at.isoformat(),
     )
@@ -332,23 +357,29 @@ def schema_to_saved_shopping_list_item_data(
 
 # ── Schema → Domain Data ─────────────────────────────────────────
 
+
 def schema_to_recipe_data(body: RecipeCreate) -> RecipeData:
     ingredients = []
     for ing in body.ingredients:
-        ingredients.append(RecipeIngredient(
-            product_id=ProductId(ing.product_id) if ing.product_id is not None else None,
-            sub_recipe_id=RecipeId(ing.sub_recipe_id) if ing.sub_recipe_id is not None else None,
-            quantity=Quantity(ing.quantity_amount, ing.quantity_unit),
-            order=ing.order,
-        ))
+        ingredients.append(
+            RecipeIngredient(
+                product_id=ProductId(ing.product_id)
+                if ing.product_id is not None
+                else None,
+                sub_recipe_id=RecipeId(ing.sub_recipe_id)
+                if ing.sub_recipe_id is not None
+                else None,
+                quantity=Quantity(ing.quantity_amount, ing.quantity_unit),
+                order=ing.order,
+            )
+        )
     return RecipeData(
         name=body.name,
         category_id=RecipeCategoryId(body.category_id),
         servings=body.servings,
         ingredients=ingredients,
         steps=[
-            CookingStep(order=s.order, description=s.description)
-            for s in body.steps
+            CookingStep(order=s.order, description=s.description) for s in body.steps
         ],
         weight=body.weight,
         total_pieces=body.total_pieces,
@@ -397,19 +428,23 @@ def schema_to_menu_slot(s: MenuSlotSchema) -> MenuSlot:
 
 # ── Meal Summary ──────────────────────────────────────────────────
 
+
 def _ingredient_node_to_schema(node: IngredientNode) -> MealIngredientSchema:
     return MealIngredientSchema(
         product_id=int(node.product_id) if node.product_id is not None else None,
         product_name=node.product_name,
         quantity_amount=node.quantity_amount,
         quantity_unit=node.quantity_unit,
-        sub_recipe_id=int(node.sub_recipe_id) if node.sub_recipe_id is not None else None,
+        sub_recipe_id=int(node.sub_recipe_id)
+        if node.sub_recipe_id is not None
+        else None,
         sub_recipe_name=node.sub_recipe_name,
         sub_ingredients=[_ingredient_node_to_schema(c) for c in node.children],
     )
 
 
 # ── MealType ──────────────────────────────────────────────────────
+
 
 def meal_type_to_response(mt: MealType) -> MealTypeResponse:
     return MealTypeResponse(
@@ -440,42 +475,46 @@ def meal_summary_to_response(summary: MealSummaryDomain) -> MealSummaryResponseS
                 total_pieces=r.pieces_info["total_pieces"],
                 pieces_per_portion=r.pieces_info["pieces_per_portion"],
             )
-        recipes.append(MealSummaryRecipeSchema(
-            recipe_id=int(r.recipe_id),
-            recipe_name=r.recipe_name,
-            occurrences=[
-                MealOccurrenceSchema(
-                    day=o.day,
-                    meal_type_id=o.meal_type_id,
-                    servings=o.servings,
-                    pieces_override=o.pieces_override,
-                    slot_index=o.slot_index,
-                )
-                for o in r.occurrences
-            ],
-            total_servings=r.total_servings,
-            pieces_info=pieces,
-            ingredients=[_ingredient_node_to_schema(n) for n in r.ingredients],
-        ))
+        recipes.append(
+            MealSummaryRecipeSchema(
+                recipe_id=int(r.recipe_id),
+                recipe_name=r.recipe_name,
+                occurrences=[
+                    MealOccurrenceSchema(
+                        day=o.day,
+                        meal_type_id=o.meal_type_id,
+                        servings=o.servings,
+                        pieces_override=o.pieces_override,
+                        slot_index=o.slot_index,
+                    )
+                    for o in r.occurrences
+                ],
+                total_servings=r.total_servings,
+                pieces_info=pieces,
+                ingredients=[_ingredient_node_to_schema(n) for n in r.ingredients],
+            )
+        )
 
     products = []
     for p in summary.products:
-        products.append(MealSummaryProductSchema(
-            product_id=int(p.product_id),
-            product_name=p.product_name,
-            occurrences=[
-                MealSummaryProductOccurrence(
-                    day=o["day"],
-                    meal_type_id=o["meal_type_id"],
-                    quantity=o["quantity"],
-                    unit=o["unit"],
-                    slot_index=o["slot_index"],
-                )
-                for o in p.occurrences
-            ],
-            total_quantity=p.total_quantity,
-            unit=p.unit,
-        ))
+        products.append(
+            MealSummaryProductSchema(
+                product_id=int(p.product_id),
+                product_name=p.product_name,
+                occurrences=[
+                    MealSummaryProductOccurrence(
+                        day=o["day"],
+                        meal_type_id=o["meal_type_id"],
+                        quantity=o["quantity"],
+                        unit=o["unit"],
+                        slot_index=o["slot_index"],
+                    )
+                    for o in p.occurrences
+                ],
+                total_quantity=p.total_quantity,
+                unit=p.unit,
+            )
+        )
 
     return MealSummaryResponseSchema(
         menu_id=int(summary.menu_id),

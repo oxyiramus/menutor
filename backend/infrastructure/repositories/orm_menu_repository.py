@@ -49,16 +49,19 @@ class OrmMenuRepository(
                 MenuSlot(
                     day=s.day,
                     meal_type_id=MealTypeId(s.meal_type_id),
-                    recipe_id=RecipeId(s.recipe_id) if s.recipe_id is not None else None,
-                    product_id=ProductId(s.product_id) if s.product_id is not None else None,
+                    recipe_id=RecipeId(s.recipe_id)
+                    if s.recipe_id is not None
+                    else None,
+                    product_id=ProductId(s.product_id)
+                    if s.product_id is not None
+                    else None,
                     quantity=s.quantity,
                     unit=s.unit,
                     servings_override=s.servings_override,
                     pieces_override=s.pieces_override,
                     position=s.slot_position,
                     member_ids=[
-                        FamilyMemberId(mid)
-                        for mid in json.loads(s.member_ids or "[]")
+                        FamilyMemberId(mid) for mid in json.loads(s.member_ids or "[]")
                     ],
                 )
                 for s in sorted(row.slots, key=lambda s: s.slot_position)
