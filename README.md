@@ -97,7 +97,7 @@ npm run build
 
 ## Развёртывание
 
-В репозитории есть Docker Compose конфигурации для разработки и production. GitHub Actions workflow выполняет обновление контейнеров на self-hosted runner при push в `master`: [deploy.yml](.github/workflows/deploy.yml). Отдельный CI workflow для автоматического запуска тестов при pull request пока не настроен.
+В репозитории есть Docker Compose конфигурации для разработки и production. GitHub Actions workflow выполняет обновление контейнеров на self-hosted runner при push в `main`: [deploy.yml](.github/workflows/deploy.yml). Отдельный CI workflow для автоматического запуска тестов при pull request пока не настроен.
 
 ## Документация
 
