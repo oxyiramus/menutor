@@ -1,17 +1,14 @@
 """Base ORM repository — shared save/delete/get_by_id/find_all logic."""
 
 from abc import abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from sqlalchemy.orm import Session
 
 from backend.domain.exceptions import RepositoryError
 
-E = TypeVar("E")   # Domain entity type
-I = TypeVar("I", bound=int)  # Typed ID (NewType over int)
 
-
-class BaseOrmRepository(Generic[E, I]):
+class BaseOrmRepository[E, I: int]:
     _row_class: Any  # SQLAlchemy ORM model class, e.g. RecipeRow
 
     def __init__(self, session: Session) -> None:
@@ -100,4 +97,3 @@ class BaseOrmRepository(Generic[E, I]):
             .all()
         )
         return [self._row_to_entity(r) for r in rows]
-

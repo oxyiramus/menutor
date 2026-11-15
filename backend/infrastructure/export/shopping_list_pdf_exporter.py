@@ -4,9 +4,15 @@ from typing import Any
 from backend.domain.entities.shopping_list import ShoppingList
 
 _UNIT_RU: dict[str, str] = {
-    "g": "г", "kg": "кг", "ml": "мл", "l": "л",
-    "pcs": "шт", "pack": "упак", "box": "кор",
-    "tsp": "ч.л.", "tbsp": "ст.л.",
+    "g": "г",
+    "kg": "кг",
+    "ml": "мл",
+    "l": "л",
+    "pcs": "шт",
+    "pack": "упак",
+    "box": "кор",
+    "tsp": "ч.л.",
+    "tbsp": "ст.л.",
 }
 
 
@@ -70,11 +76,8 @@ def _build_pdf(
     ]
     for candidate in regular_candidates:
         if candidate.exists():
-            try:
-                pdfmetrics.registerFont(TTFont("CyrillicRegular", str(candidate)))
-                _CYRILLIC_FONT = "CyrillicRegular"
-            except Exception:
-                pass
+            pdfmetrics.registerFont(TTFont("CyrillicRegular", str(candidate)))
+            _CYRILLIC_FONT = "CyrillicRegular"
             break
 
     bold_candidates = [
@@ -85,11 +88,8 @@ def _build_pdf(
     ]
     for candidate in bold_candidates:
         if candidate.exists():
-            try:
-                pdfmetrics.registerFont(TTFont("CyrillicBold", str(candidate)))
-                _CYRILLIC_FONT_BOLD = "CyrillicBold"
-            except Exception:
-                pass
+            pdfmetrics.registerFont(TTFont("CyrillicBold", str(candidate)))
+            _CYRILLIC_FONT_BOLD = "CyrillicBold"
             break
 
     styles = getSampleStyleSheet()
@@ -125,7 +125,9 @@ def _build_pdf(
 
     story: list[Any] = []
     story.append(Paragraph("Список покупок", title_style))
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#2c5282")))
+    story.append(
+        HRFlowable(width="100%", thickness=1, color=colors.HexColor("#2c5282"))
+    )
     story.append(Spacer(1, 0.3 * cm))
 
     for category, items in sorted(shopping_list.items_by_category().items()):
@@ -147,38 +149,53 @@ def _build_pdf(
             ]
         ]
         for item in items:
-            rq = item.recipe_quantity if item.recipe_quantity is not None else item.quantity
+            rq = (
+                item.recipe_quantity
+                if item.recipe_quantity is not None
+                else item.quantity
+            )
             bq = item.buy_quantity
             recipe_str = f"{rq.amount:g} {_to_display(rq.unit)}"
             buy_str = f"{bq.amount:g} {_to_display(bq.unit)}"
             cost_str = f"{item.cost.amount:.2f} руб"
-            table_data.append([
-                Paragraph(item.product_name, normal_style),
-                Paragraph(recipe_str, normal_style),
-                Paragraph(buy_str, normal_style),
-                Paragraph(cost_str, normal_style),
-            ])
+            table_data.append(
+                [
+                    Paragraph(item.product_name, normal_style),
+                    Paragraph(recipe_str, normal_style),
+                    Paragraph(buy_str, normal_style),
+                    Paragraph(cost_str, normal_style),
+                ]
+            )
 
         col_widths = [7 * cm, 4 * cm, 3 * cm, 3 * cm]
         table = Table(table_data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ebf4ff")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), cat_color),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7fafc")]),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e0")),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ]))
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ebf4ff")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), cat_color),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [colors.white, colors.HexColor("#f7fafc")],
+                    ),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e0")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
         story.append(table)
         story.append(Spacer(1, 0.2 * cm))
 
     total = shopping_list.total_cost()
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#2c5282")))
     story.append(
-        Paragraph(f"Итого: {total.amount:.2f} руб", total_style)
+        HRFlowable(width="100%", thickness=1, color=colors.HexColor("#2c5282"))
     )
+    story.append(Paragraph(f"Итого: {total.amount:.2f} руб", total_style))
 
     doc.build(story)
     return buf.getvalue()

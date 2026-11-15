@@ -12,7 +12,7 @@ const version = __APP_VERSION__
     </p>
     <p class="text-sm mt-4">
       <a
-        href="https://github.com/zhdanovaekaterina/menutor/blob/master/docs/user_guide.md"
+        href="https://github.com/zhdanovaekaterina/menutor/blob/main/docs/user_guide.md"
         target="_blank"
         class="text-blue-600 hover:text-blue-800 underline"
       >Руководство пользователя</a>

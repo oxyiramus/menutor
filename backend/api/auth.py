@@ -1,5 +1,7 @@
 """Зависимость аутентификации — извлечение текущего пользователя из JWT."""
 
+from typing import Annotated
+
 from fastapi import Depends, HTTPException, Request, status
 
 from backend.api.deps import get_container
@@ -9,8 +11,9 @@ from backend.domain.exceptions import AuthenticationError
 
 
 def get_current_user(
+    *,
     request: Request,
-    container: ApplicationContainer = Depends(get_container),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> User:
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):

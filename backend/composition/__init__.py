@@ -1,5 +1,5 @@
 """Composition Root — public API."""
 
-from backend.composition.container import ApplicationContainer  # noqa: F401
+from backend.composition.container import ApplicationContainer
 
 __all__ = ["ApplicationContainer"]

@@ -3,9 +3,15 @@ from typing import Any
 from backend.domain.entities.shopping_list import ShoppingList
 
 _UNIT_RU: dict[str, str] = {
-    "g": "г", "kg": "кг", "ml": "мл", "l": "л",
-    "pcs": "шт", "pack": "упак", "box": "кор",
-    "tsp": "ч.л.", "tbsp": "ст.л.",
+    "g": "г",
+    "kg": "кг",
+    "ml": "мл",
+    "l": "л",
+    "pcs": "шт",
+    "pack": "упак",
+    "box": "кор",
+    "tsp": "ч.л.",
+    "tbsp": "ст.л.",
 }
 
 
@@ -22,7 +28,11 @@ class ShoppingListTextExporter:
         for category, items in sorted(shopping_list.items_by_category().items()):
             lines.append(f"{category}:")
             for item in items:
-                rq = item.recipe_quantity if item.recipe_quantity is not None else item.quantity
+                rq = (
+                    item.recipe_quantity
+                    if item.recipe_quantity is not None
+                    else item.quantity
+                )
                 bq = item.buy_quantity
                 recipe_qty_str = f"{rq.amount:g} {_to_display(rq.unit)}"
                 buy_qty_str = f"{bq.amount:g} {_to_display(bq.unit)}"
@@ -43,7 +53,7 @@ class ShoppingListTextExporter:
     def example_bytes(self) -> bytes:
         return (
             "Список покупок\n\nМолочные:\n• Молоко — 1 л — 80.00 руб\n\nИтого: 80.00 руб"
-        ).encode("utf-8")
+        ).encode()
 
     def content_type(self) -> str:
         return "text/plain; charset=utf-8"

@@ -26,9 +26,7 @@ class FlattenRecipeProducts:
         self._product_repo = product_repo
         self._builder = builder
 
-    def execute(
-        self, recipe_id: RecipeId, user_id: UserId
-    ) -> list[FlattenedProduct]:
+    def execute(self, recipe_id: RecipeId, user_id: UserId) -> list[FlattenedProduct]:
         recipe = self._recipe_repo.get_by_id(recipe_id)
         if recipe is None or recipe.user_id != user_id:
             raise EntityNotFoundError(f"Рецепт {recipe_id} не найден")
@@ -37,9 +35,11 @@ class FlattenRecipeProducts:
         for pid, qty in resolved.items():
             product = self._product_repo.get_by_id(pid)
             if product is not None:
-                result.append(FlattenedProduct(
-                    product_id=pid,
-                    product_name=product.name,
-                    quantity=qty,
-                ))
+                result.append(
+                    FlattenedProduct(
+                        product_id=pid,
+                        product_name=product.name,
+                        quantity=qty,
+                    )
+                )
         return result

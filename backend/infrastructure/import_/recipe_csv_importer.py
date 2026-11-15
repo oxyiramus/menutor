@@ -41,63 +41,81 @@ class RecipeCsvImporter:
                     f"Строка {i}: отсутствуют обязательные поля: {', '.join(sorted(missing))}"
                 )
             if not row.get("name", "").strip():
-                raise ImportValidationError(f"Строка {i}: поле 'name' не может быть пустым")
+                raise ImportValidationError(
+                    f"Строка {i}: поле 'name' не может быть пустым"
+                )
 
             try:
                 servings = int(row["servings"])
             except ValueError:
-                raise ImportValidationError(f"Строка {i}: некорректное значение 'servings'")
+                raise ImportValidationError(
+                    f"Строка {i}: некорректное значение 'servings'"
+                )
 
             try:
                 category_id = int(row["category_id"])
             except ValueError:
-                raise ImportValidationError(f"Строка {i}: некорректное значение 'category_id'")
+                raise ImportValidationError(
+                    f"Строка {i}: некорректное значение 'category_id'"
+                )
 
             try:
                 weight = int(row.get("weight") or 0)
             except ValueError:
-                raise ImportValidationError(f"Строка {i}: некорректное значение 'weight'")
+                raise ImportValidationError(
+                    f"Строка {i}: некорректное значение 'weight'"
+                )
 
             try:
                 raw_ingredients = json.loads(row.get("ingredients_json") or "[]")
                 ingredients: list[RecipeIngredient] = []
                 for ing_data in raw_ingredients:
                     if ing_data.get("product_id") is not None:
-                        ingredients.append(RecipeIngredient(
-                            product_id=ProductId(int(ing_data["product_id"])),
-                            quantity=Quantity(
-                                float(ing_data["quantity_amount"]),
-                                ing_data["quantity_unit"],
-                            ),
-                            order=int(ing_data.get("order", 0)),
-                        ))
-                    elif "sub_recipe_id" in ing_data:
-                        sub_id = RecipeId(int(ing_data["sub_recipe_id"]))
-                        sub = self._repo.get_by_id(sub_id)
-                        if sub is not None and sub.user_id == user_id:
-                            ingredients.append(RecipeIngredient(
-                                sub_recipe_id=sub_id,
+                        ingredients.append(
+                            RecipeIngredient(
+                                product_id=ProductId(int(ing_data["product_id"])),
                                 quantity=Quantity(
                                     float(ing_data["quantity_amount"]),
                                     ing_data["quantity_unit"],
                                 ),
                                 order=int(ing_data.get("order", 0)),
-                            ))
+                            )
+                        )
+                    elif "sub_recipe_id" in ing_data:
+                        sub_id = RecipeId(int(ing_data["sub_recipe_id"]))
+                        sub = self._repo.get_by_id(sub_id)
+                        if sub is not None and sub.user_id == user_id:
+                            ingredients.append(
+                                RecipeIngredient(
+                                    sub_recipe_id=sub_id,
+                                    quantity=Quantity(
+                                        float(ing_data["quantity_amount"]),
+                                        ing_data["quantity_unit"],
+                                    ),
+                                    order=int(ing_data.get("order", 0)),
+                                )
+                            )
                         else:
                             errors.append(
                                 f"Рецепт-ингредиент с ID {sub_id} не найден, пропущен"
                             )
             except Exception as e:
-                raise ImportValidationError(f"Строка {i}: некорректный 'ingredients_json': {e}") from e
+                raise ImportValidationError(
+                    f"Строка {i}: некорректный 'ingredients_json': {e}"
+                ) from e
 
             try:
                 raw_steps = json.loads(row.get("steps_json") or "[]")
                 steps = [
-                    CookingStep(order=int(s["order"]), description=str(s["description"]))
+                    CookingStep(
+                        order=int(s["order"]), description=str(s["description"])
+                    )
                     for s in raw_steps
                 ]
             except Exception as e:
-                raise ImportValidationError(f"Строка {i}: некорректный 'steps_json': {e}") from e
+                raise ImportValidationError(
+                    f"Строка {i}: некорректный 'steps_json': {e}"
+                ) from e
 
             raw_id = int(row.get("id") or 0)
             existing = self._repo.get_by_id(RecipeId(raw_id)) if raw_id > 0 else None
@@ -119,8 +137,12 @@ class RecipeCsvImporter:
                 category_id=RecipeCategoryId(category_id),
                 weight=weight,
                 user_id=user_id,
-                total_pieces=int(row["total_pieces"]) if row.get("total_pieces") else None,
-                pieces_per_portion=int(row["pieces_per_portion"]) if row.get("pieces_per_portion") else None,
+                total_pieces=int(row["total_pieces"])
+                if row.get("total_pieces")
+                else None,
+                pieces_per_portion=int(row["pieces_per_portion"])
+                if row.get("pieces_per_portion")
+                else None,
                 link=raw_link,
                 comment=raw_comment,
             )

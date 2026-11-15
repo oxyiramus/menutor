@@ -7,14 +7,22 @@ from backend.domain.entities.menu import WeeklyMenu
 _DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 _UNIT_RU: dict[str, str] = {
-    "g": "г", "kg": "кг", "ml": "мл", "l": "л",
-    "pcs": "шт", "pack": "упак", "box": "кор",
-    "tsp": "ч.л.", "tbsp": "ст.л.", "serv": "порц",
+    "g": "г",
+    "kg": "кг",
+    "ml": "мл",
+    "l": "л",
+    "pcs": "шт",
+    "pack": "упак",
+    "box": "кор",
+    "tsp": "ч.л.",
+    "tbsp": "ст.л.",
+    "serv": "порц",
 }
 
 
 def _unit_label(unit: str) -> str:
     return _UNIT_RU.get(unit, unit)
+
 
 _BUNDLED_DIR = pathlib.Path(__file__).parent / "fonts"
 
@@ -42,20 +50,14 @@ def _register_fonts() -> tuple[str, str]:
 
     for candidate in _REGULAR_CANDIDATES:
         if candidate.exists():
-            try:
-                pdfmetrics.registerFont(TTFont("CyrillicRegular", str(candidate)))
-                regular = "CyrillicRegular"
-            except Exception:
-                pass
+            pdfmetrics.registerFont(TTFont("CyrillicRegular", str(candidate)))
+            regular = "CyrillicRegular"
             break
 
     for candidate in _BOLD_CANDIDATES:
         if candidate.exists():
-            try:
-                pdfmetrics.registerFont(TTFont("CyrillicBold", str(candidate)))
-                bold = "CyrillicBold"
-            except Exception:
-                pass
+            pdfmetrics.registerFont(TTFont("CyrillicBold", str(candidate)))
+            bold = "CyrillicBold"
             break
 
     return regular, bold
@@ -209,8 +211,13 @@ def _build_pdf(
         row: list[Any] = [Paragraph(label, meal_label_style)]
         for day_idx in range(7):
             text = _cell_text(
-                menu, day_idx, meal_type_id,
-                recipe_names, product_names, recipe_colors, product_colors,
+                menu,
+                day_idx,
+                meal_type_id,
+                recipe_names,
+                product_names,
+                recipe_colors,
+                product_colors,
             )
             row.append(Paragraph(text, cell_style))
         table_data.append(row)
@@ -224,24 +231,33 @@ def _build_pdf(
     col_widths = [label_col_w] + [day_col_w] * 7
 
     table = Table(table_data, colWidths=col_widths)
-    table.setStyle(TableStyle([
-        # Header row background
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ebf4ff")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#2c5282")),
-        # Meal label column (first column, data rows)
-        ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#ebf4ff")),
-        # Alternating row backgrounds for data rows
-        ("ROWBACKGROUNDS", (1, 1), (-1, -1), [colors.white, colors.HexColor("#f7fafc")]),
-        # Grid
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e0")),
-        # Padding
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        # Vertical alignment
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
+    table.setStyle(
+        TableStyle(
+            [
+                # Header row background
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ebf4ff")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#2c5282")),
+                # Meal label column (first column, data rows)
+                ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#ebf4ff")),
+                # Alternating row backgrounds for data rows
+                (
+                    "ROWBACKGROUNDS",
+                    (1, 1),
+                    (-1, -1),
+                    [colors.white, colors.HexColor("#f7fafc")],
+                ),
+                # Grid
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e0")),
+                # Padding
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                # Vertical alignment
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
 
     story: list[Any] = [
         Paragraph(menu.name, title_style),
@@ -267,6 +283,11 @@ class MenuPdfExporter:
         meal_type_names: dict[int, str] | None = None,
     ) -> bytes:
         return _build_pdf(
-            menu, recipe_names, product_names, paper,
-            recipe_colors, product_colors, meal_type_names,
+            menu,
+            recipe_names,
+            product_names,
+            paper,
+            recipe_colors,
+            product_colors,
+            meal_type_names,
         )

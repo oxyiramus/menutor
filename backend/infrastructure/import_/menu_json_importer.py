@@ -34,27 +34,43 @@ class MenuJsonImporter:
             if not isinstance(row, dict):
                 raise ImportValidationError(f"Элемент {i}: ожидается объект")
             if not str(row.get("name", "")).strip():
-                raise ImportValidationError(f"Элемент {i}: поле 'name' не может быть пустым")
+                raise ImportValidationError(
+                    f"Элемент {i}: поле 'name' не может быть пустым"
+                )
 
             try:
                 slots = [
                     MenuSlot(
                         day=int(s["day"]),
                         meal_type_id=MealTypeId(int(s["meal_type_id"])),
-                        recipe_id=RecipeId(int(s["recipe_id"])) if s.get("recipe_id") is not None else None,
-                        product_id=ProductId(int(s["product_id"])) if s.get("product_id") is not None else None,
-                        quantity=float(s["quantity"]) if s.get("quantity") is not None else None,
+                        recipe_id=RecipeId(int(s["recipe_id"]))
+                        if s.get("recipe_id") is not None
+                        else None,
+                        product_id=ProductId(int(s["product_id"]))
+                        if s.get("product_id") is not None
+                        else None,
+                        quantity=float(s["quantity"])
+                        if s.get("quantity") is not None
+                        else None,
                         unit=str(s["unit"]) if s.get("unit") is not None else None,
-                        servings_override=float(s["servings_override"]) if s.get("servings_override") is not None else None,
-                        pieces_override=int(s["pieces_override"]) if s.get("pieces_override") is not None else None,
+                        servings_override=float(s["servings_override"])
+                        if s.get("servings_override") is not None
+                        else None,
+                        pieces_override=int(s["pieces_override"])
+                        if s.get("pieces_override") is not None
+                        else None,
                         position=int(s.get("position") or 0),
                     )
                     for s in (row.get("slots") or [])
                 ]
             except InvalidEntityError as e:
-                raise ImportValidationError(f"Элемент {i}: некорректный слот: {e}") from e
+                raise ImportValidationError(
+                    f"Элемент {i}: некорректный слот: {e}"
+                ) from e
             except Exception as e:
-                raise ImportValidationError(f"Элемент {i}: ошибка разбора слотов: {e}") from e
+                raise ImportValidationError(
+                    f"Элемент {i}: ошибка разбора слотов: {e}"
+                ) from e
 
             raw_id = int(row.get("id") or 0)
             existing = self._repo.get_by_id(MenuId(raw_id)) if raw_id > 0 else None

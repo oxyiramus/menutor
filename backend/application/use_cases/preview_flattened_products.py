@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from backend.application.use_cases.flatten_recipe_products import FlattenedProduct
 from backend.domain.entities.recipe import Recipe
 from backend.domain.ports.product_repository import ProductRepository
-from backend.domain.ports.recipe_repository import RecipeRepository
 from backend.domain.services.shopping_list_builder import ShoppingListBuilder
 from backend.domain.value_objects.quantity import Quantity
 from backend.domain.value_objects.recipe_ingredient import RecipeIngredient

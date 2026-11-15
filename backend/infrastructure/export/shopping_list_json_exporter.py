@@ -4,9 +4,15 @@ from typing import Any
 from backend.domain.entities.shopping_list import ShoppingList
 
 _UNIT_RU: dict[str, str] = {
-    "g": "г", "kg": "кг", "ml": "мл", "l": "л",
-    "pcs": "шт", "pack": "упак", "box": "кор",
-    "tsp": "ч.л.", "tbsp": "ст.л.",
+    "g": "г",
+    "kg": "кг",
+    "ml": "мл",
+    "l": "л",
+    "pcs": "шт",
+    "pack": "упак",
+    "box": "кор",
+    "tsp": "ч.л.",
+    "tbsp": "ст.л.",
 }
 
 
@@ -22,7 +28,11 @@ class ShoppingListJsonExporter:
         for category, items in sorted(shopping_list.items_by_category().items()):
             category_items: list[dict[str, Any]] = []
             for item in items:
-                rq = item.recipe_quantity if item.recipe_quantity is not None else item.quantity
+                rq = (
+                    item.recipe_quantity
+                    if item.recipe_quantity is not None
+                    else item.quantity
+                )
                 bq = item.buy_quantity
                 entry: dict[str, Any] = {
                     "product_id": item.product_id,
@@ -58,7 +68,9 @@ class ShoppingListJsonExporter:
 
     def export_bytes(self, entities: list[Any]) -> bytes:
         shopping_list: ShoppingList = entities[0]
-        return json.dumps(self._to_dict(shopping_list), ensure_ascii=False, indent=2).encode("utf-8")
+        return json.dumps(
+            self._to_dict(shopping_list), ensure_ascii=False, indent=2
+        ).encode("utf-8")
 
     def example_bytes(self) -> bytes:
         example: dict[str, Any] = {
@@ -70,7 +82,11 @@ class ShoppingListJsonExporter:
                         {
                             "product_id": 1,
                             "product_name": "Молоко",
-                            "recipe_quantity": {"amount": 1000.0, "unit": "ml", "unit_ru": "мл"},
+                            "recipe_quantity": {
+                                "amount": 1000.0,
+                                "unit": "ml",
+                                "unit_ru": "мл",
+                            },
                             "buy_quantity": {"amount": 1, "unit": "l", "unit_ru": "л"},
                             "cost": {"amount": "80.00", "currency": "RUB"},
                             "purchased": False,

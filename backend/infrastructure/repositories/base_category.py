@@ -9,7 +9,7 @@ from backend.domain.value_objects.category import ActiveCategory, Category
 
 
 class BaseOrmCategoryRepository:
-    _cat_class: ClassVar[Any]     # ORM row class for the category table
+    _cat_class: ClassVar[Any]  # ORM row class for the category table
     _linked_class: ClassVar[Any]  # ORM row class with a category_id FK
     _linked_fk_col: ClassVar[str]  # Attribute name on _linked_class, e.g. "category_id"
 
@@ -38,13 +38,13 @@ class BaseOrmCategoryRepository:
 
     def find_all(self) -> list[Category]:
         rows: list[Any] = (
-            self._session.query(self._cat_class)
-            .order_by(self._cat_class.name)
-            .all()
+            self._session.query(self._cat_class).order_by(self._cat_class.name).all()
         )
         return [Category(r.id, r.name, bool(r.active), r.color) for r in rows]
 
-    def save(self, name: str, category_id: int | None = None, *, color: str | None = None) -> int:
+    def save(
+        self, name: str, category_id: int | None = None, *, color: str | None = None
+    ) -> int:
         if category_id is None:
             row = self._cat_class(name=name, color=color)
             self._session.add(row)
@@ -93,9 +93,7 @@ class BaseOrmCategoryRepository:
         try:
             target = self._session.get(self._cat_class, to_id)
             if target is None:
-                raise AppError(
-                    f"Категория назначения с id={to_id} не найдена"
-                )
+                raise AppError(f"Категория назначения с id={to_id} не найдена")
             self._session.query(self._linked_class).filter(
                 self._linked_fk_attr() == from_id
             ).update({self._linked_fk_col: to_id}, synchronize_session=False)

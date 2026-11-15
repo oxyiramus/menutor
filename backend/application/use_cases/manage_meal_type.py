@@ -73,8 +73,11 @@ class UpdateMealType:
         self, meal_type_id: MealTypeId, data: MealTypeData, user_id: UserId
     ) -> MealType:
         mt = load_owned(
-            self._repo, meal_type_id, user_id,
-            "Тип приема пищи", not_found="не найден",
+            self._repo,
+            meal_type_id,
+            user_id,
+            "Тип приема пищи",
+            not_found="не найден",
         )
         name = data.name.strip()
         if not name or len(name) > MealType.MAX_NAME_LENGTH:
@@ -95,8 +98,11 @@ class DeleteMealType:
 
     def execute(self, meal_type_id: MealTypeId, user_id: UserId) -> None:
         mt = load_owned(
-            self._repo, meal_type_id, user_id,
-            "Тип приема пищи", not_found="не найден",
+            self._repo,
+            meal_type_id,
+            user_id,
+            "Тип приема пищи",
+            not_found="не найден",
         )
         if mt.is_system:
             raise SystemMealTypeDeletionError(
@@ -115,8 +121,11 @@ class CheckMealTypeUsage:
         self, meal_type_id: MealTypeId, user_id: UserId
     ) -> list[tuple[int, str]]:
         load_owned(
-            self._repo, meal_type_id, user_id,
-            "Тип приема пищи", not_found="не найден",
+            self._repo,
+            meal_type_id,
+            user_id,
+            "Тип приема пищи",
+            not_found="не найден",
         )
         return self._repo.get_usage(meal_type_id)
 

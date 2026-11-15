@@ -9,12 +9,23 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api.routers import auth, categories, family
+from backend.api.routers import (
+    auth,
+    categories,
+    family,
+)
 from backend.api.routers import import_export as import_export_router
 from backend.api.routers import meal_types as meal_types_router
-from backend.api.routers import menus, preferences, products, recipes
+from backend.api.routers import (
+    menus,
+    preferences,
+    products,
+    recipes,
+)
 from backend.api.routers import shopping_list as shopping_list_router
-from backend.api.routers import system
+from backend.api.routers import (
+    system,
+)
 from backend.composition_root import ApplicationContainer
 from backend.domain.exceptions import (
     AppError,
@@ -40,7 +51,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Menutor API",
     description="API планировщика меню",
-    version=_version_file.read_text().strip() if (_version_file := Path(__file__).parents[2] / "VERSION").exists() else os.environ.get("VERSION", "unknown"),
+    version=_version_file.read_text().strip()
+    if (_version_file := Path(__file__).parents[2] / "VERSION").exists()
+    else os.environ.get("VERSION", "unknown"),
     lifespan=lifespan,
 )
 
@@ -96,7 +109,9 @@ async def entity_not_found_handler(
 
 
 @app.exception_handler(CircularDependencyError)
-async def handle_circular_dep(request: Request, exc: CircularDependencyError) -> JSONResponse:
+async def handle_circular_dep(
+    request: Request, exc: CircularDependencyError
+) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={"detail": str(exc), "error_type": "circular_dependency"},
@@ -104,7 +119,9 @@ async def handle_circular_dep(request: Request, exc: CircularDependencyError) ->
 
 
 @app.exception_handler(NestingDepthExceededError)
-async def handle_nesting_depth(request: Request, exc: NestingDepthExceededError) -> JSONResponse:
+async def handle_nesting_depth(
+    request: Request, exc: NestingDepthExceededError
+) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={"detail": str(exc), "error_type": "nesting_depth_exceeded"},
@@ -126,9 +143,7 @@ async def meal_type_limit_handler(
 
 
 @app.exception_handler(DomainError)
-async def domain_error_handler(
-    request: Request, exc: DomainError
-) -> JSONResponse:
+async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 

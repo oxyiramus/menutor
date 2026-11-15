@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
@@ -40,9 +40,7 @@ class OrmPreferenceRepository(PreferenceRepository):
         )
         return [self._row_to_entity(r) for r in rows]
 
-    def find_by_ids(
-        self, ids: list[PreferenceId], user_id: UserId
-    ) -> list[Preference]:
+    def find_by_ids(self, ids: list[PreferenceId], user_id: UserId) -> list[Preference]:
         if not ids:
             return []
         int_ids = [int(i) for i in ids]
@@ -70,11 +68,12 @@ class OrmPreferenceRepository(PreferenceRepository):
         return self._row_to_entity(row)
 
     def save(self, preference: Preference) -> Preference:
+        row: PreferenceRow | None
         if int(preference.id) == 0:
             row = self._make_new_row(preference)
             self._session.add(row)
             self._session.flush()
-            new_id = PreferenceId(row.id)
+            new_id = PreferenceId(cast(int, row.id))
         else:
             row = self._session.get(PreferenceRow, int(preference.id))
             if row is None:
@@ -90,9 +89,9 @@ class OrmPreferenceRepository(PreferenceRepository):
         if not ids:
             return
         int_ids = [int(i) for i in ids]
-        self._session.query(PreferenceRow).filter(
-            PreferenceRow.id.in_(int_ids)
-        ).delete(synchronize_session=False)
+        self._session.query(PreferenceRow).filter(PreferenceRow.id.in_(int_ids)).delete(
+            synchronize_session=False
+        )
         self._session.commit()
 
     def _make_new_row(self, pref: Preference) -> PreferenceRow:
@@ -102,12 +101,10 @@ class OrmPreferenceRepository(PreferenceRepository):
             type=pref.type.value,
             mode=pref.mode.value,
             categories=[
-                PreferenceCategoryRow(category_id=int(cid))
-                for cid in pref.category_ids
+                PreferenceCategoryRow(category_id=int(cid)) for cid in pref.category_ids
             ],
             products=[
-                PreferenceProductRow(product_id=int(pid))
-                for pid in pref.product_ids
+                PreferenceProductRow(product_id=int(pid)) for pid in pref.product_ids
             ],
             recipe_categories=[
                 PreferenceRecipeCategoryRow(recipe_category_id=int(rcid))

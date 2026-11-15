@@ -13,8 +13,12 @@ from backend.domain.value_objects.types import UserId
 
 
 def load_owned(
-    repo: Any, id: Any, user_id: UserId,
-    label: str = "Объект", *, not_found: str = "не найден",
+    repo: Any,
+    id: Any,
+    user_id: UserId,
+    label: str = "Объект",
+    *,
+    not_found: str = "не найден",
 ) -> Any:
     """Load entity by id and verify ownership. Raises EntityNotFoundError."""
     entity = repo.get_by_id(id)

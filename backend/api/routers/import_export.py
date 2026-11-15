@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import Response
 
@@ -12,15 +14,19 @@ router = APIRouter(tags=["import-export"])
 
 @router.get("/{entity_type}/export/{format}")
 def export_entities(
+    *,
     entity_type: str,
     format: str,
     ids: str | None = None,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     id_list = [int(x) for x in ids.split(",")] if ids else None
     data, content_type, filename = container.export_entities.execute(
-        entity_type, format, user.id, id_list,
+        entity_type,
+        format,
+        user.id,
+        id_list,
     )
     return Response(
         content=data,
@@ -31,12 +37,15 @@ def export_entities(
 
 @router.get("/{entity_type}/export/{format}/example")
 def export_example(
+    *,
     entity_type: str,
     format: str,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
-    data, content_type, filename = container.export_entities.example(entity_type, format)
+    data, content_type, filename = container.export_entities.example(
+        entity_type, format
+    )
     return Response(
         content=data,
         media_type=content_type,
@@ -46,11 +55,12 @@ def export_example(
 
 @router.post("/{entity_type}/import/{format}", response_model=ImportResultResponse)
 def import_entities(
+    *,
     entity_type: str,
     format: str,
-    file: UploadFile = File(...),
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    file: Annotated[UploadFile, File(...)],
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> ImportResultResponse:
     data = file.file.read()
     result = container.import_entities.execute(entity_type, format, data, user.id)

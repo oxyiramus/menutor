@@ -63,8 +63,7 @@ class RecipeJsonExporter:
             "comment": recipe.comment,
             "ingredients": ingredients,
             "steps": [
-                {"order": s.order, "description": s.description}
-                for s in recipe.steps
+                {"order": s.order, "description": s.description} for s in recipe.steps
             ],
         }
 
@@ -76,16 +75,29 @@ class RecipeJsonExporter:
         if self._compact:
             examples: list[dict[str, Any]] = [
                 {
-                    "id": 1, "name": "Блины", "servings": 4,
-                    "ingredients": [{"product_id": 1, "quantity_amount": 200, "quantity_unit": "g"}],
+                    "id": 1,
+                    "name": "Блины",
+                    "servings": 4,
+                    "ingredients": [
+                        {"product_id": 1, "quantity_amount": 200, "quantity_unit": "g"}
+                    ],
                 }
             ]
         else:
             examples = [
                 {
-                    "id": 1, "name": "Блины", "category_id": 1, "servings": 4, "weight": 600,
+                    "id": 1,
+                    "name": "Блины",
+                    "category_id": 1,
+                    "servings": 4,
+                    "weight": 600,
                     "ingredients": [
-                        {"product_id": 1, "quantity_amount": 200, "quantity_unit": "g", "order": 0}
+                        {
+                            "product_id": 1,
+                            "quantity_amount": 200,
+                            "quantity_unit": "g",
+                            "order": 0,
+                        }
                     ],
                     "steps": [{"order": 1, "description": "Смешать ингредиенты"}],
                 }

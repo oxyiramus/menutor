@@ -43,9 +43,14 @@ class SavedShoppingListItemData:
     item_order: int
 
 
-def _item_data_to_entity(data: SavedShoppingListItemData, index: int) -> SavedShoppingListItem:
+def _item_data_to_entity(
+    data: SavedShoppingListItemData, index: int
+) -> SavedShoppingListItem:
     recipe_quantity = None
-    if data.recipe_quantity_amount is not None and data.recipe_quantity_unit is not None:
+    if (
+        data.recipe_quantity_amount is not None
+        and data.recipe_quantity_unit is not None
+    ):
         recipe_quantity = Quantity(
             amount=data.recipe_quantity_amount,
             unit=data.recipe_quantity_unit,
@@ -56,7 +61,9 @@ def _item_data_to_entity(data: SavedShoppingListItemData, index: int) -> SavedSh
         product_name=data.product_name,
         category=data.category,
         quantity=Quantity(amount=data.quantity_amount, unit=data.quantity_unit),
-        buy_quantity=Quantity(amount=data.buy_quantity_amount, unit=data.buy_quantity_unit),
+        buy_quantity=Quantity(
+            amount=data.buy_quantity_amount, unit=data.buy_quantity_unit
+        ),
         buy_quantity_overridden=data.buy_quantity_overridden,
         cost=Money(Decimal(str(data.cost_amount)), data.cost_currency),
         purchased=data.purchased,
@@ -203,6 +210,8 @@ class ToggleItemPurchased:
                 item.purchased = not item.purchased
                 break
         else:
-            raise EntityNotFoundError(f"Позиция {item_id} не найдена в списке {list_id}")
+            raise EntityNotFoundError(
+                f"Позиция {item_id} не найдена в списке {list_id}"
+            )
         shopping_list.updated_at = _now()
         return self._repo.save(shopping_list)

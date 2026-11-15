@@ -1,6 +1,6 @@
 # Menutor
 
-![Version](https://img.shields.io/badge/version-0.15.1-green.svg)
+![Version](https://img.shields.io/badge/version-0.15.2-green.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)
 
@@ -97,7 +97,7 @@ npm run build
 
 ## Развёртывание
 
-В репозитории есть Docker Compose конфигурации для разработки и production. GitHub Actions workflow выполняет обновление контейнеров на self-hosted runner при push в `master`: [deploy.yml](.github/workflows/deploy.yml). Отдельный CI workflow для автоматического запуска тестов при pull request пока не настроен.
+В репозитории есть Docker Compose конфигурации для разработки и production. GitHub Actions workflow выполняет обновление контейнеров на self-hosted runner при push в `main`: [deploy.yml](.github/workflows/deploy.yml). Отдельный CI workflow для автоматического запуска тестов при pull request пока не настроен.
 
 ## Документация
 

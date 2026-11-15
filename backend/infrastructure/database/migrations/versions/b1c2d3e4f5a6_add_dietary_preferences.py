@@ -8,16 +8,17 @@ Revises: a9b8c7d6e5f4
 Create Date: 2026-04-02 12:00:00.000000
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b1c2d3e4f5a6"
-down_revision: Union[str, None] = "a9b8c7d6e5f4"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "a9b8c7d6e5f4"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -39,7 +40,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("preference_id", sa.Integer(), nullable=False),
         sa.Column("category_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(["preference_id"], ["preferences.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["preference_id"], ["preferences.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["category_id"], ["product_categories.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -50,7 +53,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("preference_id", sa.Integer(), nullable=False),
         sa.Column("product_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(["preference_id"], ["preferences.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["preference_id"], ["preferences.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["product_id"], ["products.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )

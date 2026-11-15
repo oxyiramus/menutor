@@ -88,7 +88,16 @@ class MoveSlotInMenu:
         position: int | None = None,
     ) -> WeeklyMenu:
         menu = load_owned(self._repo, menu_id, user_id, "Меню", not_found="не найдено")
-        menu.move_slot(day, meal_type_id, recipe_id, product_id, to_day, to_meal_type_id, to_position, position)
+        menu.move_slot(
+            day,
+            meal_type_id,
+            recipe_id,
+            product_id,
+            to_day,
+            to_meal_type_id,
+            to_position,
+            position,
+        )
         return self._repo.save(menu)
 
 
@@ -103,7 +112,8 @@ class RemoveDishFromSlot:
     ) -> WeeklyMenu:
         menu = load_owned(self._repo, menu_id, user_id, "Меню", not_found="не найдено")
         menu.slots = [
-            s for s in menu.slots
+            s
+            for s in menu.slots
             if not (s.day == day and s.meal_type_id == meal_type_id)
         ]
         return self._repo.save(menu)
@@ -147,7 +157,9 @@ class CopyMenu:
         self._repo = repo
 
     def execute(self, menu_id: MenuId, user_id: UserId) -> WeeklyMenu:
-        source = load_owned(self._repo, menu_id, user_id, "Меню", not_found="не найдено")
+        source = load_owned(
+            self._repo, menu_id, user_id, "Меню", not_found="не найдено"
+        )
         copied_slots = [
             MenuSlot(
                 day=s.day,

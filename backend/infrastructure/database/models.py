@@ -14,7 +14,6 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -92,7 +91,9 @@ class ProductRow(Base):
     supplier = Column(String, nullable=False, default="", server_default="")
     recipe_unit = Column(String, ForeignKey("units.name"), nullable=False)
     purchase_unit = Column(String, ForeignKey("units.name"), nullable=False)
-    price_per_purchase_unit = Column(Float, nullable=False, default=0.0, server_default="0")
+    price_per_purchase_unit = Column(
+        Float, nullable=False, default=0.0, server_default="0"
+    )
     conversion_factor = Column(Float, nullable=False, default=1.0, server_default="1.0")
 
 
@@ -146,9 +147,7 @@ class RecipeIngredientRow(Base):
     )
     amount = Column(Float, nullable=False)
     unit = Column(String, ForeignKey("units.name"), nullable=False)
-    ingredient_order = Column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    ingredient_order = Column(Integer, nullable=False, default=0, server_default="0")
 
     recipe = relationship(
         "RecipeRow", back_populates="ingredients", foreign_keys=[recipe_id]
@@ -175,7 +174,9 @@ class FamilyMemberRow(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     name = Column(String, nullable=False)
-    portion_multiplier = Column(Float, nullable=False, default=1.0, server_default="1.0")
+    portion_multiplier = Column(
+        Float, nullable=False, default=1.0, server_default="1.0"
+    )
     comment = Column(String, nullable=False, default="", server_default="")
 
     preference_links = relationship(
@@ -192,8 +193,8 @@ class PreferenceRow(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     name = Column(String, nullable=False)
-    type = Column(String, nullable=False)   # "CATEGORY_BASED" or "ALLERGY"
-    mode = Column(String, nullable=False)   # "BLOCKED" or "ALLOWED"
+    type = Column(String, nullable=False)  # "CATEGORY_BASED" or "ALLERGY"
+    mode = Column(String, nullable=False)  # "BLOCKED" or "ALLOWED"
 
     categories = relationship(
         "PreferenceCategoryRow",
@@ -219,9 +220,7 @@ class PreferenceCategoryRow(Base):
     preference_id = Column(
         Integer, ForeignKey("preferences.id", ondelete="CASCADE"), nullable=False
     )
-    category_id = Column(
-        Integer, ForeignKey("product_categories.id"), nullable=False
-    )
+    category_id = Column(Integer, ForeignKey("product_categories.id"), nullable=False)
 
     preference = relationship("PreferenceRow", back_populates="categories")
 
@@ -375,9 +374,7 @@ class ShoppingListItemRow(Base):
     recipe_quantity_amount = Column(Float, nullable=True)
     recipe_quantity_unit = Column(String, nullable=True)
     cost_amount = Column(Float, nullable=False)
-    cost_currency = Column(
-        String, nullable=False, default="RUB", server_default="RUB"
-    )
+    cost_currency = Column(String, nullable=False, default="RUB", server_default="RUB")
     purchased = Column(Boolean, nullable=False, default=False, server_default="0")
     item_order = Column(Integer, nullable=False, default=0, server_default="0")
 

@@ -38,22 +38,30 @@ class ProductJsonImporter:
                     f"Элемент {i}: отсутствуют обязательные поля: {', '.join(sorted(missing))}"
                 )
             if not str(row.get("name", "")).strip():
-                raise ImportValidationError(f"Элемент {i}: поле 'name' не может быть пустым")
+                raise ImportValidationError(
+                    f"Элемент {i}: поле 'name' не может быть пустым"
+                )
 
             try:
                 price_amount = Decimal(str(row["price_amount"]))
             except InvalidOperation:
-                raise ImportValidationError(f"Элемент {i}: некорректное значение 'price_amount'")
+                raise ImportValidationError(
+                    f"Элемент {i}: некорректное значение 'price_amount'"
+                )
 
             try:
                 category_id = int(row["category_id"])
             except (ValueError, TypeError):
-                raise ImportValidationError(f"Элемент {i}: некорректное значение 'category_id'")
+                raise ImportValidationError(
+                    f"Элемент {i}: некорректное значение 'category_id'"
+                )
 
             try:
                 conversion_factor = float(row.get("conversion_factor") or 1.0)
             except (ValueError, TypeError):
-                raise ImportValidationError(f"Элемент {i}: некорректное значение 'conversion_factor'")
+                raise ImportValidationError(
+                    f"Элемент {i}: некорректное значение 'conversion_factor'"
+                )
 
             raw_id = int(row.get("id") or 0)
             existing = self._repo.get_by_id(ProductId(raw_id)) if raw_id > 0 else None

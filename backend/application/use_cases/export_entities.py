@@ -4,7 +4,7 @@ from backend.domain.exceptions import ImportValidationError
 from backend.domain.ports.menu_repository import MenuRepository
 from backend.domain.ports.product_repository import ProductRepository
 from backend.domain.ports.recipe_repository import RecipeRepository
-from backend.domain.value_objects.types import MenuId, ProductId, RecipeId, UserId
+from backend.domain.value_objects.types import UserId
 from backend.infrastructure.export.registry import ExportRegistry
 
 
@@ -58,6 +58,7 @@ class ExportEntities:
         user_id: UserId,
         entity_ids: list[int] | None,
     ) -> list[Any]:
+        all_entities: list[Any]
         if entity_type == "products":
             all_entities = self._product_repo.find_all(user_id)
             if entity_ids is not None:

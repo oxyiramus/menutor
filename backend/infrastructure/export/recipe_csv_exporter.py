@@ -1,7 +1,7 @@
 import csv
 import io
 import json
-from typing import Any
+from typing import Any, ClassVar
 
 from backend.domain.entities.recipe import Recipe
 
@@ -9,7 +9,19 @@ from backend.domain.entities.recipe import Recipe
 class RecipeCsvExporter:
     """Exports Recipe entities to CSV bytes (ingredients and steps as JSON columns)."""
 
-    _HEADERS = ["id", "name", "category_id", "servings", "weight", "total_pieces", "pieces_per_portion", "link", "comment", "ingredients_json", "steps_json"]
+    _HEADERS: ClassVar[list[str]] = [
+        "id",
+        "name",
+        "category_id",
+        "servings",
+        "weight",
+        "total_pieces",
+        "pieces_per_portion",
+        "link",
+        "comment",
+        "ingredients_json",
+        "steps_json",
+    ]
 
     def export_bytes(self, entities: list[Any]) -> bytes:
         buf = io.StringIO()
@@ -32,33 +44,53 @@ class RecipeCsvExporter:
                     d["sub_recipe_id"] = int(ing.sub_recipe_id)
                 ingredients.append(d)
             steps = [
-                {"order": s.order, "description": s.description}
-                for s in recipe.steps
+                {"order": s.order, "description": s.description} for s in recipe.steps
             ]
-            writer.writerow([
-                recipe.id,
-                recipe.name,
-                recipe.category_id,
-                recipe.servings,
-                recipe.weight,
-                recipe.total_pieces,
-                recipe.pieces_per_portion,
-                recipe.link,
-                recipe.comment,
-                json.dumps(ingredients, ensure_ascii=False),
-                json.dumps(steps, ensure_ascii=False),
-            ])
+            writer.writerow(
+                [
+                    recipe.id,
+                    recipe.name,
+                    recipe.category_id,
+                    recipe.servings,
+                    recipe.weight,
+                    recipe.total_pieces,
+                    recipe.pieces_per_portion,
+                    recipe.link,
+                    recipe.comment,
+                    json.dumps(ingredients, ensure_ascii=False),
+                    json.dumps(steps, ensure_ascii=False),
+                ]
+            )
         return buf.getvalue().encode("utf-8")
 
     def example_bytes(self) -> bytes:
         buf = io.StringIO()
         writer = csv.writer(buf)
         writer.writerow(self._HEADERS)
-        writer.writerow([
-            1, "Блины", 1, 4, 600, None, None, None, None,
-            json.dumps([{"product_id": 1, "quantity_amount": 200, "quantity_unit": "g", "order": 0}]),
-            json.dumps([{"order": 1, "description": "Смешать ингредиенты"}]),
-        ])
+        writer.writerow(
+            [
+                1,
+                "Блины",
+                1,
+                4,
+                600,
+                None,
+                None,
+                None,
+                None,
+                json.dumps(
+                    [
+                        {
+                            "product_id": 1,
+                            "quantity_amount": 200,
+                            "quantity_unit": "g",
+                            "order": 0,
+                        }
+                    ]
+                ),
+                json.dumps([{"order": 1, "description": "Смешать ингредиенты"}]),
+            ]
+        )
         return buf.getvalue().encode("utf-8")
 
     def content_type(self) -> str:

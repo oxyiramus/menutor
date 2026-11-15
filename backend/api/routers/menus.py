@@ -1,3 +1,4 @@
+from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -27,8 +28,9 @@ router = APIRouter(prefix="/menus", tags=["menus"])
 
 @router.get("", response_model=list[MenuResponse])
 def list_menus(
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    *,
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[MenuResponse]:
     menus = container.list_menus.execute(user.id)
     return [menu_to_response(m) for m in menus]
@@ -36,9 +38,10 @@ def list_menus(
 
 @router.post("", response_model=MenuResponse, status_code=status.HTTP_201_CREATED)
 def create_menu(
+    *,
     body: MenuCreate,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MenuResponse:
     menu = container.create_menu.execute(body.name, user.id)
     return menu_to_response(menu)
@@ -46,9 +49,10 @@ def create_menu(
 
 @router.get("/{menu_id}", response_model=MenuResponse)
 def get_menu(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MenuResponse:
     menu = container.load_menu.execute(MenuId(menu_id), user.id)
     if menu is None:
@@ -61,9 +65,10 @@ def get_menu(
 
 @router.get("/{menu_id}/summary", response_model=MealSummaryResponseSchema)
 def get_meal_summary(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MealSummaryResponseSchema:
     summary = container.generate_meal_summary.execute(MenuId(menu_id), user.id)
     return meal_summary_to_response(summary)
@@ -71,19 +76,21 @@ def get_meal_summary(
 
 @router.delete("/{menu_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_menu(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     container.delete_menu.execute(MenuId(menu_id), user.id)
 
 
 @router.post("/{menu_id}/slots", response_model=MenuResponse)
 def add_slot(
+    *,
     menu_id: int,
     body: MenuSlotSchema,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MenuResponse:
     slot = schema_to_menu_slot(body)
     menu = container.add_dish_to_slot.execute(MenuId(menu_id), slot, user.id)
@@ -92,10 +99,11 @@ def add_slot(
 
 @router.post("/{menu_id}/slots/move", response_model=MenuResponse)
 def move_slot(
+    *,
     menu_id: int,
     body: MoveSlotRequest,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MenuResponse:
     menu = container.move_slot_in_menu.execute(
         menu_id=MenuId(menu_id),
@@ -116,10 +124,11 @@ def move_slot(
 
 @router.delete("/{menu_id}/slots", response_model=MenuResponse)
 def remove_slot(
+    *,
     menu_id: int,
     body: RemoveItemRequest,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MenuResponse:
     menu = container.remove_item_from_slot.execute(
         menu_id=MenuId(menu_id),
@@ -137,19 +146,23 @@ def remove_slot(
 
 @router.post("/{menu_id}/clear", response_model=MenuResponse)
 def clear_menu(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MenuResponse:
     menu = container.clear_menu.execute(MenuId(menu_id), user.id)
     return menu_to_response(menu)
 
 
-@router.post("/{menu_id}/copy", response_model=MenuResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{menu_id}/copy", response_model=MenuResponse, status_code=status.HTTP_201_CREATED
+)
 def copy_menu(
+    *,
     menu_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> MenuResponse:
     menu = container.copy_menu.execute(MenuId(menu_id), user.id)
     return menu_to_response(menu)
@@ -157,10 +170,11 @@ def copy_menu(
 
 @router.post("/{menu_id}/export/pdf")
 def export_menu_pdf(
+    *,
     menu_id: int,
     paper: str = Query(default="a4", pattern="^(a4|a3)$"),
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     from backend.infrastructure.export.menu_pdf_exporter import MenuPdfExporter
 
@@ -189,7 +203,10 @@ def export_menu_pdf(
     meal_type_names: dict[int, str] = {int(mt.id): mt.name for mt in meal_types}
 
     pdf_bytes = MenuPdfExporter().export_bytes(
-        menu, recipe_names, product_names, paper,
+        menu,
+        recipe_names,
+        product_names,
+        paper,
         meal_type_names=meal_type_names,
     )
 

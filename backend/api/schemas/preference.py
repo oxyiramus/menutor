@@ -3,8 +3,8 @@ from pydantic import BaseModel
 
 class PreferenceCreate(BaseModel):
     name: str
-    type: str          # "CATEGORY_BASED" or "ALLERGY"
-    mode: str          # "BLOCKED" or "ALLOWED"
+    type: str  # "CATEGORY_BASED" or "ALLERGY"
+    mode: str  # "BLOCKED" or "ALLOWED"
     category_ids: list[int] = []
     product_ids: list[int] = []
     recipe_category_ids: list[int] = []
@@ -25,4 +25,5 @@ class PreferenceResponse(BaseModel):
 
 class PreferenceMatchResponse(BaseModel):
     """List of preferences that a recipe matches."""
+
     preferences: list[PreferenceResponse]

@@ -30,24 +30,39 @@ class PreferenceMatcher:
     def matches_preference(self, recipe: Recipe, preference: Preference) -> bool:
         """Return True if the recipe satisfies (is compatible with) the given preference."""
         all_product_ids = self._resolve_all_product_ids(recipe, set())
-        all_product_category_ids, has_uncategorized_product = self._resolve_category_ids(all_product_ids)
-        all_recipe_category_ids, has_uncategorized_recipe = self._resolve_all_recipe_category_ids(recipe, set())
+        all_product_category_ids, has_uncategorized_product = (
+            self._resolve_category_ids(all_product_ids)
+        )
+        all_recipe_category_ids, has_uncategorized_recipe = (
+            self._resolve_all_recipe_category_ids(recipe, set())
+        )
 
         if preference.type == PreferenceType.ALLERGY:
             return self._matches_allergy(
-                all_product_ids, all_product_category_ids, all_recipe_category_ids, preference
+                all_product_ids,
+                all_product_category_ids,
+                all_recipe_category_ids,
+                preference,
             )
 
         if preference.mode == PreferenceMode.BLOCKED:
-            return self._matches_blocked(all_product_category_ids, all_recipe_category_ids, preference)
+            return self._matches_blocked(
+                all_product_category_ids, all_recipe_category_ids, preference
+            )
 
         # ALLOWED mode
         return self._matches_allowed(
-            all_product_ids, all_product_category_ids, all_recipe_category_ids,
-            preference, has_uncategorized_product, has_uncategorized_recipe,
+            all_product_ids,
+            all_product_category_ids,
+            all_recipe_category_ids,
+            preference,
+            has_uncategorized_product,
+            has_uncategorized_recipe,
         )
 
-    def match_all(self, recipe: Recipe, preferences: list[Preference]) -> list[Preference]:
+    def match_all(
+        self, recipe: Recipe, preferences: list[Preference]
+    ) -> list[Preference]:
         """Return the subset of preferences that the recipe satisfies."""
         return [p for p in preferences if self.matches_preference(recipe, p)]
 
@@ -93,7 +108,9 @@ class PreferenceMatcher:
                 assert ing.sub_recipe_id is not None
                 sub = self._recipe_repo.get_by_id(ing.sub_recipe_id)
                 if sub is not None:
-                    sub_cats, sub_uncategorized = self._resolve_all_recipe_category_ids(sub, visited)
+                    sub_cats, sub_uncategorized = self._resolve_all_recipe_category_ids(
+                        sub, visited
+                    )
                     category_ids |= sub_cats
                     has_uncategorized = has_uncategorized or sub_uncategorized
         visited.discard(recipe.id)
@@ -129,9 +146,7 @@ class PreferenceMatcher:
             return False
         if product_category_ids & set(preference.category_ids):
             return False
-        if recipe_category_ids & set(preference.recipe_category_ids):
-            return False
-        return True
+        return not recipe_category_ids & set(preference.recipe_category_ids)
 
     @staticmethod
     def _matches_blocked(
@@ -141,9 +156,7 @@ class PreferenceMatcher:
     ) -> bool:
         if product_category_ids & set(preference.category_ids):
             return False
-        if recipe_category_ids & set(preference.recipe_category_ids):
-            return False
-        return True
+        return not recipe_category_ids & set(preference.recipe_category_ids)
 
     @staticmethod
     def _matches_allowed(
@@ -174,8 +187,8 @@ class PreferenceMatcher:
             if has_uncategorized_recipe:
                 return False  # recipe without category not in any allowed set
             allowed_recipes = set(preference.recipe_category_ids)
-            for cid in recipe_category_ids:
-                if cid not in allowed_recipes:
+            for recipe_cid in recipe_category_ids:
+                if recipe_cid not in allowed_recipes:
                     return False
 
         return True

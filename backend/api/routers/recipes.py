@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 
@@ -43,16 +45,18 @@ def _make_name_lookup(container: ApplicationContainer, user_id: UserId):  # type
     def lookup(rid: RecipeId) -> str | None:
         r = container.get_recipe.execute(rid, user_id)
         return r.name if r is not None else None
+
     return lookup
 
 
 @router.get("", response_model=PaginatedResponse[RecipeResponse])
 def list_recipes(
+    *,
     page: int | None = Query(None, ge=1),
     search: str = Query(""),
     category_id: int | None = Query(None),
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> PaginatedResponse[RecipeResponse]:
     result = container.list_recipes.execute(
         user.id,
@@ -75,8 +79,9 @@ def list_recipes(
 
 @router.get("/categories", response_model=list[ActiveCategoryResponse])
 def list_recipe_categories(
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    *,
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[ActiveCategoryResponse]:
     categories = container.list_recipe_categories.execute()
     return [active_category_to_response(c) for c in categories]
@@ -85,9 +90,10 @@ def list_recipe_categories(
 # MUST be registered before /{recipe_id} routes
 @router.post("/cost-preview", response_model=CostPreviewResponse)
 def preview_recipe_cost(
+    *,
     body: CostPreviewRequest,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> CostPreviewResponse:
     request_data = CostPreviewRequestData(
         ingredients=[
@@ -103,17 +109,16 @@ def preview_recipe_cost(
         total_pieces=body.total_pieces,
         pieces_per_portion=body.pieces_per_portion,
     )
-    result = container.preview_recipe_cost.execute(
-        RecipeId(0), user.id, request_data
-    )
+    result = container.preview_recipe_cost.execute(RecipeId(0), user.id, request_data)
     return cost_result_to_preview_response(result)
 
 
 @router.post("/validate-sub-recipe", response_model=ValidateSubRecipeResponse)
 def validate_sub_recipe(
+    *,
     body: ValidateSubRecipeRequest,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> ValidateSubRecipeResponse:
     result = container.validate_sub_recipe.execute(
         RecipeId(body.parent_recipe_id) if body.parent_recipe_id else None,
@@ -125,9 +130,10 @@ def validate_sub_recipe(
 
 @router.get("/{recipe_id}", response_model=RecipeResponse)
 def get_recipe(
+    *,
     recipe_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> RecipeResponse:
     recipe = container.get_recipe.execute(RecipeId(recipe_id), user.id)
     if recipe is None:
@@ -139,16 +145,21 @@ def get_recipe(
     return recipe_to_response(recipe, _make_name_lookup(container, user.id), cost)
 
 
-@router.get("/{recipe_id}/flattened-products", response_model=list[FlattenedProductResponse])
+@router.get(
+    "/{recipe_id}/flattened-products", response_model=list[FlattenedProductResponse]
+)
 def get_flattened_products(
+    *,
     recipe_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[FlattenedProductResponse]:
     try:
         items = container.flatten_recipe_products.execute(RecipeId(recipe_id), user.id)
     except SubRecipeWeightError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        )
     return [
         FlattenedProductResponse(
             product_id=int(item.product_id),
@@ -165,10 +176,11 @@ def get_flattened_products(
     response_model=list[FlattenedProductResponse],
 )
 def preview_flattened_products(
+    *,
     recipe_id: int,
     body: FlattenedProductsPreviewRequest,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[FlattenedProductResponse]:
     ingredients_data = [
         IngredientData(
@@ -184,7 +196,9 @@ def preview_flattened_products(
             RecipeId(recipe_id), user.id, ingredients_data
         )
     except SubRecipeWeightError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        )
     return [
         FlattenedProductResponse(
             product_id=int(item.product_id),
@@ -198,9 +212,10 @@ def preview_flattened_products(
 
 @router.get("/{recipe_id}/dependents")
 def get_recipe_dependents(
+    *,
     recipe_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[dict]:
     parents = container.delete_recipe.check_dependents(RecipeId(recipe_id), user.id)
     return [{"id": int(r.id), "name": r.name} for r in parents]
@@ -208,9 +223,10 @@ def get_recipe_dependents(
 
 @router.post("", response_model=RecipeResponse, status_code=status.HTTP_201_CREATED)
 def create_recipe(
+    *,
     body: RecipeCreate,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> RecipeResponse:
     data = schema_to_recipe_data(body)
     try:
@@ -223,10 +239,11 @@ def create_recipe(
 
 @router.put("/{recipe_id}", response_model=RecipeResponse)
 def update_recipe(
+    *,
     recipe_id: int,
     body: RecipeUpdate,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> RecipeResponse:
     data = schema_to_recipe_data(body)
     recipe = container.edit_recipe.execute(RecipeId(recipe_id), data, user.id)
@@ -236,10 +253,11 @@ def update_recipe(
 
 @router.delete("/{recipe_id}", response_model=None)
 def delete_recipe(
+    *,
     recipe_id: int,
     check_dependents: bool = Query(False),
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response | JSONResponse:
     if check_dependents:
         parents = container.delete_recipe.check_dependents(RecipeId(recipe_id), user.id)
@@ -257,13 +275,12 @@ def delete_recipe(
 
 @router.post("/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
 def batch_delete_recipes(
+    *,
     body: list[int],
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    container.delete_recipe.execute(
-        [RecipeId(rid) for rid in body], user.id
-    )
+    container.delete_recipe.execute([RecipeId(rid) for rid in body], user.id)
 
 
 @router.get(
@@ -271,9 +288,10 @@ def batch_delete_recipes(
     response_model=PreferenceMatchResponse,
 )
 def get_matching_preferences(
+    *,
     recipe_id: int,
-    container: ApplicationContainer = Depends(get_container),
-    user: User = Depends(get_current_user),
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> PreferenceMatchResponse:
     matched = container.match_recipe_preferences.execute(RecipeId(recipe_id), user.id)
     return PreferenceMatchResponse(
