@@ -3,7 +3,7 @@ services:
   frontend:
     build:
       dockerfile: .docker/dev/frontend.dockerfile
-    image: zhdanovaekaterina/menutor:frontend-dev
+    image: oxyiramus/menutor:frontend-dev
     container_name: frontend
     ports:
       - '127.0.0.1:5174:5173'
@@ -19,7 +19,7 @@ services:
   backend:
     build:
       dockerfile: .docker/dev/backend.dockerfile
-    image: zhdanovaekaterina/menutor:backend-dev
+    image: oxyiramus/menutor:backend-dev
     container_name: backend
     ports:
       - '127.0.0.1:8000:8000'
