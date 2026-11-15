@@ -1,6 +1,6 @@
 # Menutor
 
-![Version](https://img.shields.io/badge/version-0.15.1-green.svg)
+![Version](https://img.shields.io/badge/version-0.15.2-green.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)
 
