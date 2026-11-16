@@ -11,11 +11,11 @@ export function usePlannerClipboard() {
 
   function copySlot(items: MenuSlot[]): void {
     // Deep-copy so later mutations to the source slot don't affect the buffer
-    clipboardItems.value = items.map((s) => ({ ...s }))
+    clipboardItems.value = items.map((s) => ({ ...s, member_ids: [...(s.member_ids ?? [])] }))
   }
 
   function pasteSlot(): MenuSlot[] | null {
-    return clipboardItems.value
+    return clipboardItems.value?.map((s) => ({ ...s, member_ids: [...(s.member_ids ?? [])] })) ?? null
   }
 
   return { hasClipboard, copySlot, pasteSlot }

@@ -25,12 +25,22 @@ export const useProductStore = defineStore('products', () => {
 
   const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
-  async function _loadPage() {
+  let pageRequest = 0
+
+  async function _loadPage(): Promise<void> {
+    const request = ++pageRequest
     const data = await fetchProducts({
       page: page.value,
       search: search.value || undefined,
       categoryId: categoryId.value ?? undefined,
     })
+    if (request !== pageRequest) return
+    const lastPage = Math.max(1, Math.ceil(data.total / (data.page_size || PAGE_SIZE)))
+    if (page.value > lastPage) {
+      page.value = lastPage
+      await _loadPage()
+      return
+    }
     items.value = data.items
     total.value = data.total
     pageSize.value = data.page_size || PAGE_SIZE

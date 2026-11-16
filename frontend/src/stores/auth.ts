@@ -38,7 +38,12 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(data: LoginRequest) {
     const tokens = await authApi.login(data)
     saveTokens(tokens.access_token, tokens.refresh_token)
-    await fetchUser()
+    try {
+      await fetchUser()
+    } catch (error) {
+      clearTokens()
+      throw error
+    }
   }
 
   async function refresh(): Promise<boolean> {
@@ -59,8 +64,9 @@ export const useAuthStore = defineStore('auth', () => {
     if (!accessToken.value) return
     try {
       user.value = await authApi.getMe(accessToken.value)
-    } catch {
+    } catch (error) {
       user.value = null
+      throw error
     }
   }
 
@@ -81,7 +87,15 @@ export const useAuthStore = defineStore('auth', () => {
       await fetchUser()
     } catch {
       const ok = await refresh()
-      if (ok) await fetchUser()
+      if (ok) {
+        try {
+          await fetchUser()
+        } catch {
+          clearTokens()
+        }
+      } else {
+        clearTokens()
+      }
     }
   }
 

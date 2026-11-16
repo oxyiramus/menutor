@@ -251,8 +251,18 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
   async function togglePurchased(itemId: number): Promise<void> {
     if (!currentListId.value) return
     try {
-      const updated = await toggleItemPurchasedApi(currentListId.value, itemId)
-      data.value = updated
+      const listId = currentListId.value
+      const updated = await toggleItemPurchasedApi(listId, itemId)
+      if (currentListId.value !== listId) return
+      if (isDirty.value && data.value) {
+        const purchasedById = new Map(updated.items.map(item => [item.id, item.purchased]))
+        data.value.items = data.value.items.map(item => ({
+          ...item,
+          purchased: purchasedById.get(item.id) ?? item.purchased,
+        }))
+      } else {
+        data.value = updated
+      }
       // Re-take snapshot so purchased-only change doesn't inflate isDirty.
       // Since buildComparableSnapshot excludes purchased, snapshot stays valid;
       // but if other changes were already pending we keep them dirty — no re-snapshot here.

@@ -48,10 +48,10 @@ api.interceptors.request.use((config) => {
 })
 
 let isRefreshing = false
-let refreshSubscribers: ((token: string) => void)[] = []
+let refreshSubscribers: { resolve: (token: string) => void; reject: (error: unknown) => void }[] = []
 
 function onTokenRefreshed(token: string) {
-  refreshSubscribers.forEach((cb) => cb(token))
+  refreshSubscribers.forEach((subscriber) => subscriber.resolve(token))
   refreshSubscribers = []
 }
 
@@ -59,7 +59,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true
 
       if (!isRefreshing) {
@@ -84,16 +84,20 @@ api.interceptors.response.use(
           isRefreshing = false
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
+          refreshSubscribers.forEach((subscriber) => subscriber.reject(error))
           refreshSubscribers = []
           redirectToLogin()
           return Promise.reject(error)
         }
       }
 
-      return new Promise((resolve) => {
-        refreshSubscribers.push((token: string) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`
-          resolve(api(originalRequest))
+      return new Promise((resolve, reject) => {
+        refreshSubscribers.push({
+          resolve: (token: string) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            resolve(api(originalRequest))
+          },
+          reject,
         })
       })
     }
