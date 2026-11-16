@@ -30,7 +30,16 @@ def upgrade() -> None:
             "ON CONFLICT (name) DO NOTHING"
         )
 
-    with op.batch_alter_table("recipe_ingredients", recreate="always") as batch_op:
+    primary_key_name = (
+        sa.inspect(op.get_bind()).get_pk_constraint("recipe_ingredients")["name"]
+        or "pk_recipe_ingredients"
+    )
+    with op.batch_alter_table(
+        "recipe_ingredients",
+        recreate="always",
+        naming_convention={"pk": "pk_%(table_name)s"},
+    ) as batch_op:
+        batch_op.drop_constraint(primary_key_name, type_="primary")
         batch_op.add_column(
             sa.Column("id", sa.Integer(), autoincrement=True, nullable=False)
         )
@@ -53,6 +62,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     with op.batch_alter_table("recipe_ingredients", recreate="always") as batch_op:
+        batch_op.drop_constraint("pk_recipe_ingredients", type_="primary")
         batch_op.drop_constraint(
             "fk_recipe_ingredients_sub_recipe_id", type_="foreignkey"
         )

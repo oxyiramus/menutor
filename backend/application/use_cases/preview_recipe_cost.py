@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 
+from backend.application.use_cases.crud_base import load_owned
 from backend.domain.entities.recipe import Recipe
 from backend.domain.exceptions import SubRecipeWeightError
 from backend.domain.ports.product_repository import ProductRepository
+from backend.domain.ports.recipe_repository import RecipeRepository
 from backend.domain.services.recipe_cost_calculator import (
     RecipeCostCalculator,
     RecipeCostResult,
@@ -40,10 +42,12 @@ class PreviewRecipeCost:
         product_repo: ProductRepository,
         builder: ShoppingListBuilder,
         calculator: RecipeCostCalculator,
+        recipe_repo: RecipeRepository | None = None,
     ) -> None:
         self._product_repo = product_repo
         self._builder = builder
         self._calculator = calculator
+        self._recipe_repo = recipe_repo
 
     def execute(
         self,
@@ -68,6 +72,13 @@ class PreviewRecipeCost:
                         quantity=Quantity(ing.quantity_amount, ing.quantity_unit),
                     )
                 )
+
+        if self._recipe_repo is not None:
+            for ingredient in ingredients:
+                if ingredient.product_id is not None:
+                    load_owned(self._product_repo, ingredient.product_id, user_id)
+                elif ingredient.sub_recipe_id is not None:
+                    load_owned(self._recipe_repo, ingredient.sub_recipe_id, user_id)
 
         temp_recipe = Recipe(
             id=recipe_id,

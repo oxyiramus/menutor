@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from backend.domain.entities.family_member import FamilyMember
 from backend.domain.entities.menu import MenuSlot, WeeklyMenu
 from backend.domain.entities.product import Product
 from backend.domain.entities.recipe import Recipe
@@ -18,6 +19,7 @@ from backend.domain.value_objects.types import (
     RecipeId,
     UserId,
 )
+from backend.infrastructure.repositories.orm_family_member_repository import OrmFamilyMemberRepository
 from backend.infrastructure.repositories.orm_menu_repository import OrmMenuRepository
 from backend.infrastructure.repositories.orm_product_repository import OrmProductRepository
 from backend.infrastructure.repositories.orm_recipe_repository import OrmRecipeRepository
@@ -47,15 +49,20 @@ def seeded_recipe(conn: object, user_id: UserId) -> Recipe:
 
 
 def test_save_load_member_ids_round_trip(
-    menu_repo: OrmMenuRepository, seeded_recipe: Recipe, user_id: UserId
+    menu_repo: OrmMenuRepository, seeded_recipe: Recipe, user_id: UserId, conn: Session
 ) -> None:
-    """Slot with member_ids=[1, 2] survives a save/load cycle."""
+    """References to existing owned members survive a save/load cycle."""
+    family_repo = OrmFamilyMemberRepository(conn)
+    member_ids = [
+        family_repo.save(FamilyMember(FamilyMemberId(0), name, user_id=user_id)).id
+        for name in ("Взрослый", "Ребенок")
+    ]
     menu = WeeklyMenu(MenuId(0), "Тест member_ids", slots=[
         MenuSlot(
             day=0,
             meal_type_id=MealTypeId(1),
             recipe_id=seeded_recipe.id,
-            member_ids=[FamilyMemberId(1), FamilyMemberId(2)],
+            member_ids=member_ids,
         )
     ], user_id=user_id)
     saved = menu_repo.save(menu)
@@ -63,7 +70,7 @@ def test_save_load_member_ids_round_trip(
 
     assert retrieved is not None
     assert len(retrieved.slots) == 1
-    assert sorted(retrieved.slots[0].member_ids) == [FamilyMemberId(1), FamilyMemberId(2)]
+    assert sorted(retrieved.slots[0].member_ids) == sorted(member_ids)
 
 
 def test_empty_member_ids_default(

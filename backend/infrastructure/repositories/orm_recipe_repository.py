@@ -30,6 +30,27 @@ class OrmRecipeRepository(
     def __init__(self, session: Session) -> None:
         super().__init__(session)
 
+    def save(self, entity: Recipe) -> Recipe:
+        from backend.domain.services.recipe_dependency_validator import (
+            RecipeDependencyValidator,
+        )
+        from backend.infrastructure.database.models import ProductRow
+        from backend.infrastructure.repositories.ownership import require_owned
+
+        sub_ids = []
+        for ingredient in entity.ingredients:
+            if ingredient.product_id is not None:
+                require_owned(
+                    self._session, ProductRow, ingredient.product_id, entity.user_id
+                )
+            elif ingredient.sub_recipe_id is not None:
+                require_owned(
+                    self._session, RecipeRow, ingredient.sub_recipe_id, entity.user_id
+                )
+                sub_ids.append(ingredient.sub_recipe_id)
+        RecipeDependencyValidator(self).validate(entity.id, sub_ids)
+        return super().save(entity)
+
     def _get_entity_id(self, entity: Recipe) -> int:
         return entity.id
 

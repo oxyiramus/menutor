@@ -26,6 +26,27 @@ class OrmMenuRepository(
     def __init__(self, session: Session) -> None:
         super().__init__(session)
 
+    def save(self, entity: WeeklyMenu) -> WeeklyMenu:
+        from backend.infrastructure.database.models import (
+            FamilyMemberRow,
+            MealTypeRow,
+            ProductRow,
+            RecipeRow,
+        )
+        from backend.infrastructure.repositories.ownership import require_owned
+
+        for slot in entity.slots:
+            require_owned(self._session, MealTypeRow, slot.meal_type_id, entity.user_id)
+            if slot.product_id is not None:
+                require_owned(
+                    self._session, ProductRow, slot.product_id, entity.user_id
+                )
+            if slot.recipe_id is not None:
+                require_owned(self._session, RecipeRow, slot.recipe_id, entity.user_id)
+            for member_id in slot.member_ids:
+                require_owned(self._session, FamilyMemberRow, member_id, entity.user_id)
+        return super().save(entity)
+
     def _get_entity_id(self, entity: WeeklyMenu) -> int:
         return entity.id
 

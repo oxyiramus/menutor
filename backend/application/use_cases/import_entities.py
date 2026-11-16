@@ -25,6 +25,8 @@ class ImportEntities:
             raise ImportValidationError(
                 f"Формат '{format}' не поддерживается для '{entity_type}'"
             )
+        previous_transaction = self._session.info.get("import_transaction")
+        self._session.info["import_transaction"] = True
         try:
             result = importer.import_from_bytes(data, user_id)
             self._session.commit()
@@ -35,3 +37,8 @@ class ImportEntities:
         except Exception as e:
             self._session.rollback()
             raise ImportValidationError(f"Ошибка импорта: {e}") from e
+        finally:
+            if previous_transaction is None:
+                self._session.info.pop("import_transaction", None)
+            else:
+                self._session.info["import_transaction"] = previous_transaction

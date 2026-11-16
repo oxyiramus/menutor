@@ -18,6 +18,7 @@ class MenuJsonExporter:
             "servings_override": slot.servings_override,
             "pieces_override": slot.pieces_override,
             "position": slot.position,
+            "member_ids": [int(mid) for mid in slot.member_ids],
         }
 
     def _to_dict(self, menu: WeeklyMenu) -> dict[str, Any]:

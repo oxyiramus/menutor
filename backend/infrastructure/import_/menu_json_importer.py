@@ -5,6 +5,7 @@ from backend.domain.exceptions import ImportValidationError, InvalidEntityError
 from backend.domain.ports.menu_repository import MenuRepository
 from backend.domain.value_objects.import_result import ImportResult
 from backend.domain.value_objects.types import (
+    FamilyMemberId,
     MealTypeId,
     MenuId,
     ProductId,
@@ -60,6 +61,9 @@ class MenuJsonImporter:
                         if s.get("pieces_override") is not None
                         else None,
                         position=int(s.get("position") or 0),
+                        member_ids=[
+                            FamilyMemberId(int(mid)) for mid in s.get("member_ids", [])
+                        ],
                     )
                     for s in (row.get("slots") or [])
                 ]

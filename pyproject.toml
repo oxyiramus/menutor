@@ -1,7 +1,7 @@
 [project]
 name = "menutor"
 version = "0.15.2"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.18",
     "bcrypt>=4.0",
@@ -24,6 +24,8 @@ dev = [
     "pylint>=4.0",
     "pytest>=9.0",
     "pytest-cov>=7.0",
+    "pypdf>=6,<8",
+    "testcontainers[postgres]>=4,<5",
 ]
 
 [tool.isort]

@@ -62,7 +62,11 @@ class BaseOrmRepository[E, I: int]:
                 )
             self._update_row(row, entity)
             new_id = self._wrap_id(entity_id)
-        self._session.commit()
+        # Imports own the transaction spanning all saved rows.
+        if self._session.info.get("import_transaction") is True:
+            self._session.flush()
+        else:
+            self._session.commit()
         result = self.get_by_id(new_id)
         if result is None:
             raise RepositoryError(
