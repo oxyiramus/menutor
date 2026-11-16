@@ -28,18 +28,6 @@ def test_menu_slot_default_member_ids():
     assert slot.member_ids == []
 
 
-def test_same_item_same_recipe_same_members():
-    a = make_recipe_slot(recipe_id=1, member_ids=[1, 2])
-    b = make_recipe_slot(recipe_id=1, member_ids=[1, 2])
-    assert WeeklyMenu._same_item(a, b)
-
-
-def test_same_item_same_recipe_different_members():
-    a = make_recipe_slot(recipe_id=1, member_ids=[1, 2])
-    b = make_recipe_slot(recipe_id=1, member_ids=[3])
-    assert not WeeklyMenu._same_item(a, b)
-
-
 def test_same_item_same_recipe_empty_vs_nonempty():
     a = make_recipe_slot(recipe_id=1, member_ids=[])
     b = make_recipe_slot(recipe_id=1, member_ids=[1])

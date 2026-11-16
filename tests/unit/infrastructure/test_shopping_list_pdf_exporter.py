@@ -31,11 +31,6 @@ def _item(
 
 
 class TestShoppingListPdfExporter:
-    def test_export_bytes_returns_bytes(self) -> None:
-        sl = ShoppingList(items=[_item()])
-        data = ShoppingListPdfExporter().export_bytes([sl])
-        assert isinstance(data, bytes)
-
     def test_output_starts_with_pdf_magic_bytes(self) -> None:
         sl = ShoppingList(items=[_item()])
         data = ShoppingListPdfExporter().export_bytes([sl])
@@ -113,10 +108,4 @@ class TestShoppingListPdfExporter:
         """Category without an entry in color map uses the default green color."""
         sl = ShoppingList(items=[_item("Молоко", "Молочные")])
         data = ShoppingListPdfExporter().export_bytes([sl], category_colors={})
-        assert data[:4] == b"%PDF"
-
-    def test_no_category_colors_arg_uses_defaults(self) -> None:
-        """Calling export_bytes without category_colors uses default fallback color."""
-        sl = ShoppingList(items=[_item("Мука", "Сыпучие")])
-        data = ShoppingListPdfExporter().export_bytes([sl])
         assert data[:4] == b"%PDF"

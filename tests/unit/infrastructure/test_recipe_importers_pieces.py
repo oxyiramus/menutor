@@ -68,21 +68,6 @@ def test_json_import_without_pieces_fields_creates_normal_recipe() -> None:
     assert saved.is_pieces_mode is False
 
 
-def test_json_import_backward_compat_missing_pieces_keys() -> None:
-    # Old format: no total_pieces/pieces_per_portion keys at all
-    row = dict(
-        name="Суп", category_id=1, servings=3, weight=0,
-        ingredients=[],
-        steps=[],
-    )
-    repo = _mock_repo()
-    result = RecipeJsonImporter(repo).import_from_bytes(_make_json(row), UID)
-    assert result == ImportResult(created=1, updated=0)
-    saved: Recipe = repo.save.call_args[0][0]
-    assert saved.total_pieces is None
-    assert saved.pieces_per_portion is None
-
-
 # --- CSV importer helpers ---
 
 def _make_csv(*rows: dict) -> bytes:

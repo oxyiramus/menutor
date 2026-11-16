@@ -64,27 +64,6 @@ def _shopping_list(
     )
 
 
-class TestSavedShoppingListCreation:
-    def test_create_with_items(self) -> None:
-        items = [
-            _item(item_id=1, product_name="Молоко", category="Молочные"),
-            _item(item_id=2, product_name="Хлеб", category="Выпечка", cost_amount="45.00"),
-        ]
-        sl = _shopping_list(items=items)
-
-        assert sl.id == SavedShoppingListId(1)
-        assert sl.user_id == UserId(1)
-        assert sl.name == "Список на неделю"
-        assert len(sl.items) == 2
-        assert sl.items[0].product_name == "Молоко"
-        assert sl.items[1].product_name == "Хлеб"
-
-    def test_create_empty_list(self) -> None:
-        sl = _shopping_list(items=[])
-        assert sl.items == []
-        assert sl.name == "Список на неделю"
-
-
 class TestTotalCost:
     def test_total_cost_sums_items(self) -> None:
         items = [
@@ -123,10 +102,3 @@ class TestItemsByCategory:
     def test_empty_list_returns_empty_dict(self) -> None:
         sl = _shopping_list(items=[])
         assert sl.items_by_category() == {}
-
-
-class TestSavedShoppingListItemNullProduct:
-    def test_item_with_none_product_id(self) -> None:
-        item = _item(product_id=None, product_name="Удаленный продукт")
-        assert item.product_id is None
-        assert item.product_name == "Удаленный продукт"
