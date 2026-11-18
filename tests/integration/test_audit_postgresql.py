@@ -1,5 +1,6 @@
 """PostgreSQL smoke test using an isolated, automatically cleaned container."""
 
+import os
 from decimal import Decimal
 from uuid import uuid4
 
@@ -19,6 +20,10 @@ from backend.infrastructure.repositories.orm_product_repository import (
 
 @pytest.fixture(scope="module")
 def postgres_url():
+    url = os.environ.get("TEST_PERSONAL_CATEGORIES_POSTGRES_URL")
+    if url:
+        yield url
+        return
     with PostgresContainer("postgres:18-alpine") as postgres:
         yield postgres.get_connection_url()
 
@@ -42,7 +47,7 @@ def test_postgresql_persist_read_and_delete(postgres_url):
                     )
                     session.execute(
                         text(
-                            "INSERT INTO product_categories (id,name,active) VALUES (1,'Category',1)"
+                            "INSERT INTO product_categories (id,user_id,name,active) VALUES (1,1,'Category',1)"
                         )
                     )
                     session.execute(

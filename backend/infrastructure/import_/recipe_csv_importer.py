@@ -4,6 +4,7 @@ import json
 
 from backend.domain.entities.recipe import Recipe
 from backend.domain.exceptions import ImportValidationError
+from backend.domain.ports.category_repository import CategoryRepository
 from backend.domain.ports.recipe_repository import RecipeRepository
 from backend.domain.value_objects.cooking_step import CookingStep
 from backend.domain.value_objects.import_result import ImportResult
@@ -15,13 +16,17 @@ from backend.domain.value_objects.types import (
     RecipeId,
     UserId,
 )
+from backend.infrastructure.import_.category import resolve_category_id
 
 _REQUIRED = {"name", "category_id", "servings"}
 
 
 class RecipeCsvImporter:
-    def __init__(self, repo: RecipeRepository) -> None:
+    def __init__(
+        self, repo: RecipeRepository, categories: CategoryRepository | None = None
+    ) -> None:
         self._repo = repo
+        self._categories = categories
 
     def import_from_bytes(self, data: bytes, user_id: UserId) -> ImportResult:
         if not data.strip():
@@ -36,6 +41,8 @@ class RecipeCsvImporter:
         errors: list[str] = []
         for i, row in enumerate(reader, start=2):
             missing = _REQUIRED - set(row.keys())
+            if row.get("category_name"):
+                missing.discard("category_id")
             if missing:
                 raise ImportValidationError(
                     f"Строка {i}: отсутствуют обязательные поля: {', '.join(sorted(missing))}"
@@ -52,12 +59,13 @@ class RecipeCsvImporter:
                     f"Строка {i}: некорректное значение 'servings'"
                 )
 
-            try:
-                category_id = int(row["category_id"])
-            except ValueError:
-                raise ImportValidationError(
-                    f"Строка {i}: некорректное значение 'category_id'"
-                )
+            category_id = resolve_category_id(
+                row.get("category_id"),
+                row.get("category_name"),
+                self._categories,
+                user_id,
+                f"Строка {i}",
+            )
 
             try:
                 weight = int(row.get("weight") or 0)
@@ -137,12 +145,14 @@ class RecipeCsvImporter:
                 category_id=RecipeCategoryId(category_id),
                 weight=weight,
                 user_id=user_id,
-                total_pieces=int(row["total_pieces"])
-                if row.get("total_pieces")
-                else None,
-                pieces_per_portion=int(row["pieces_per_portion"])
-                if row.get("pieces_per_portion")
-                else None,
+                total_pieces=(
+                    int(row["total_pieces"]) if row.get("total_pieces") else None
+                ),
+                pieces_per_portion=(
+                    int(row["pieces_per_portion"])
+                    if row.get("pieces_per_portion")
+                    else None
+                ),
                 link=raw_link,
                 comment=raw_comment,
             )

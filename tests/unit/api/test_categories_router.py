@@ -45,7 +45,7 @@ class TestProductCategories:
         resp = client.post("/api/product-categories", json={"name": "Напитки", "color": "#3B82F6"})
         assert resp.status_code == 201
         assert resp.json() == {"id": 5}
-        container.product_categories.create.execute.assert_called_once_with("Напитки", "#3B82F6")
+        container.product_categories.create.execute.assert_called_once_with("Напитки", "#3B82F6", user_id=1)
 
     def test_create_invalid_color_returns_422(self, client: TestClient, container: MagicMock) -> None:
         resp = client.post("/api/product-categories", json={"name": "Напитки", "color": "invalid"})
@@ -76,7 +76,7 @@ class TestProductCategories:
     ) -> None:
         resp = client.delete("/api/product-categories/1")
         assert resp.status_code == 204
-        container.product_categories.delete.execute.assert_called_once_with(1)
+        container.product_categories.delete.execute.assert_called_once_with(1, 1)
 
     # ---- DELETE (hard) ----
 
@@ -85,7 +85,7 @@ class TestProductCategories:
     ) -> None:
         resp = client.delete("/api/product-categories/1?hard=true")
         assert resp.status_code == 204
-        container.product_categories.hard_delete.execute.assert_called_once_with(1)
+        container.product_categories.hard_delete.execute.assert_called_once_with(1, 1)
 
     # ---- POST activate ----
 
@@ -94,7 +94,7 @@ class TestProductCategories:
     ) -> None:
         resp = client.post("/api/product-categories/3/activate")
         assert resp.status_code == 204
-        container.product_categories.activate.execute.assert_called_once_with(3)
+        container.product_categories.activate.execute.assert_called_once_with(3, 1)
 
     # ---- GET used ----
 
@@ -124,7 +124,7 @@ class TestProductCategories:
             json={"target_category_id": 2},
         )
         assert resp.status_code == 204
-        container.product_categories.move_and_delete.execute.assert_called_once_with(1, 2)
+        container.product_categories.move_and_delete.execute.assert_called_once_with(1, 2, 1)
 
     def test_move_and_delete_error_returns_422(
         self, client: TestClient, container: MagicMock
@@ -179,7 +179,7 @@ class TestRecipeCategories:
     ) -> None:
         resp = client.delete("/api/recipe-categories/1")
         assert resp.status_code == 204
-        container.recipe_categories.delete.execute.assert_called_once_with(1)
+        container.recipe_categories.delete.execute.assert_called_once_with(1, 1)
 
     # ---- DELETE (hard) ----
 
@@ -188,7 +188,7 @@ class TestRecipeCategories:
     ) -> None:
         resp = client.delete("/api/recipe-categories/1?hard=true")
         assert resp.status_code == 204
-        container.recipe_categories.hard_delete.execute.assert_called_once_with(1)
+        container.recipe_categories.hard_delete.execute.assert_called_once_with(1, 1)
 
     # ---- POST activate ----
 
@@ -197,7 +197,7 @@ class TestRecipeCategories:
     ) -> None:
         resp = client.post("/api/recipe-categories/2/activate")
         assert resp.status_code == 204
-        container.recipe_categories.activate.execute.assert_called_once_with(2)
+        container.recipe_categories.activate.execute.assert_called_once_with(2, 1)
 
     # ---- GET used ----
 
@@ -218,7 +218,7 @@ class TestRecipeCategories:
             json={"target_category_id": 3},
         )
         assert resp.status_code == 204
-        container.recipe_categories.move_and_delete.execute.assert_called_once_with(2, 3)
+        container.recipe_categories.move_and_delete.execute.assert_called_once_with(2, 3, 1)
 
     def test_move_and_delete_error_returns_422(
         self, client: TestClient, container: MagicMock

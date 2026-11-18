@@ -17,12 +17,12 @@ _SEED_SQL = [
     "INSERT OR IGNORE INTO units (name, unit_group) VALUES ('box',  'count_box')",
     "INSERT OR IGNORE INTO units (name, unit_group) VALUES ('pack', 'count_pack')",
     "INSERT OR IGNORE INTO units (name, unit_group) VALUES ('serv', 'servings')",
-    "INSERT OR IGNORE INTO recipe_categories  (name, active) VALUES ('Завтраки', 1)",
-    "INSERT OR IGNORE INTO recipe_categories  (name, active) VALUES ('Основные', 1)",
-    "INSERT OR IGNORE INTO recipe_categories  (name, active) VALUES ('Салаты',   1)",
-    "INSERT OR IGNORE INTO product_categories (name, active) VALUES ('Сыпучие',  1)",
-    "INSERT OR IGNORE INTO product_categories (name, active) VALUES ('Молочные', 1)",
-    "INSERT OR IGNORE INTO product_categories (name, active) VALUES ('Мясо',     1)",
+    "INSERT OR IGNORE INTO recipe_categories  (user_id, name, active) VALUES (1, 'Завтраки', 1)",
+    "INSERT OR IGNORE INTO recipe_categories  (user_id, name, active) VALUES (1, 'Основные', 1)",
+    "INSERT OR IGNORE INTO recipe_categories  (user_id, name, active) VALUES (1, 'Салаты',   1)",
+    "INSERT OR IGNORE INTO product_categories (user_id, name, active) VALUES (1, 'Сыпучие',  1)",
+    "INSERT OR IGNORE INTO product_categories (user_id, name, active) VALUES (1, 'Молочные', 1)",
+    "INSERT OR IGNORE INTO product_categories (user_id, name, active) VALUES (1, 'Мясо',     1)",
 ]
 
 _SEED_USER_SQL = (
@@ -50,9 +50,9 @@ def conn() -> Generator[Session, None, None]:
 
     apply_schema(engine)
     session = Session(engine)
+    session.execute(text(_SEED_USER_SQL))
     for stmt in _SEED_SQL:
         session.execute(text(stmt))
-    session.execute(text(_SEED_USER_SQL))
     for stmt in _SEED_MEAL_TYPES_SQL:
         session.execute(text(stmt))
     session.commit()
@@ -70,6 +70,7 @@ def user_id() -> UserId:
 def isolation_client(tmp_path, monkeypatch):
     """Real app, schema, FK enforcement, registration and JWT authentication."""
     from fastapi.testclient import TestClient
+
     from backend.api.main import app
 
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'isolation.sqlite'}")
@@ -172,3 +173,13 @@ def isolation_users(isolation_client):
         )
         user["bodies"] = bodies
     return client, users
+
+
+@pytest.fixture
+def second_owner(conn):
+    from backend.domain.entities.user import User
+    from backend.infrastructure.repositories.orm_user_repository import OrmUserRepository
+
+    return OrmUserRepository(conn).save(
+        User(UserId(0), "second@example.com", "other", "hash")
+    ).id

@@ -32,6 +32,11 @@ class UserRow(Base):
     created_at = Column(DateTime, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
 
+    product_categories = relationship(
+        "ProductCategoryRow", cascade="all, delete-orphan"
+    )
+    recipe_categories = relationship("RecipeCategoryRow", cascade="all, delete-orphan")
+
     refresh_tokens = relationship(
         "RefreshTokenRow",
         back_populates="user",
@@ -62,18 +67,30 @@ class UnitRow(Base):
 
 class RecipeCategoryRow(Base):
     __tablename__ = "recipe_categories"
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "name", name="uq_recipe_categories_user_name"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, unique=True, nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String, nullable=False)
     active = Column(Integer, nullable=False, default=1, server_default="1")
     color = Column(String(7), nullable=True)
 
 
 class ProductCategoryRow(Base):
     __tablename__ = "product_categories"
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "name", name="uq_product_categories_user_name"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, unique=True, nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String, nullable=False)
     active = Column(Integer, nullable=False, default=1, server_default="1")
     color = Column(String(7), nullable=True)
 

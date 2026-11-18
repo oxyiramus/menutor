@@ -48,6 +48,9 @@ from backend.infrastructure.repositories.orm_family_member_repository import (
 from backend.infrastructure.repositories.orm_meal_type_repository import (
     OrmMealTypeRepository,
 )
+from backend.infrastructure.repositories.orm_product_category_repository import (
+    OrmProductCategoryRepository,
+)
 from backend.infrastructure.repositories.orm_product_repository import (
     OrmProductRepository,
 )
@@ -55,6 +58,7 @@ from backend.infrastructure.repositories.orm_refresh_token_repository import (
     OrmRefreshTokenRepository,
 )
 from backend.infrastructure.repositories.orm_user_repository import OrmUserRepository
+from tests.integration.api_isolation_helpers import owned_category_id
 
 
 @pytest.fixture
@@ -140,7 +144,8 @@ def product_data(name, category=1):
 def test_product_ownership_and_mixed_delete(conn, auth):
     user, *_ = auth
     repo = OrmProductRepository(conn)
-    own = CreateProduct(repo).execute(product_data("Own"), user.id)
+    category = owned_category_id(conn, "product", user.id)
+    own = CreateProduct(repo).execute(product_data("Own", category), user.id)
     foreign = CreateProduct(repo).execute(product_data("Foreign"), UserId(1))
     assert GetEntity(repo).execute(foreign.id, user.id) is None
     with pytest.raises(EntityNotFoundError):
@@ -155,16 +160,20 @@ def test_paginated_search_category_total_and_owner(conn, auth):
     user, *_ = auth
     repo = OrmProductRepository(conn)
     create = CreateProduct(repo)
+    category = owned_category_id(conn, "product", user.id)
+    other_category = OrmProductCategoryRepository(conn).save(
+        "Another category", user_id=user.id
+    )
     expected = [
-        create.execute(product_data(f"Apple {i:04}"), user.id).id
+        create.execute(product_data(f"Apple {i:04}", category), user.id).id
         for i in range(PAGE_SIZE + 3)
     ]
     create.execute(product_data("Apple foreign"), UserId(1))
-    create.execute(product_data("Apple other category", 2), user.id)
-    create.execute(product_data("Banana"), user.id)
+    create.execute(product_data("Apple other category", other_category), user.id)
+    create.execute(product_data("Banana", category), user.id)
     listing = PaginatedListEntities(repo)
     pages = [
-        listing.execute(user.id, ProductCategoryId(1), page=p, search="APPLE")
+        listing.execute(user.id, ProductCategoryId(category), page=p, search="APPLE")
         for p in (1, 2, 3)
     ]
     assert [p.total for p in pages] == [PAGE_SIZE + 3] * 3

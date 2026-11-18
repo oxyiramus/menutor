@@ -17,6 +17,7 @@ from backend.domain.value_objects.types import (
 from backend.infrastructure.database.models import (
     CookingStepRow,
     ProductRow,
+    RecipeCategoryRow,
     RecipeIngredientRow,
     RecipeRow,
 )
@@ -38,6 +39,9 @@ class OrmRecipeRepository(
         )
         from backend.infrastructure.repositories.ownership import require_owned
 
+        require_owned(
+            self._session, RecipeCategoryRow, entity.category_id, entity.user_id
+        )
         sub_ids = []
         for ingredient in entity.ingredients:
             if ingredient.product_id is not None:

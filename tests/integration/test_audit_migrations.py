@@ -3,7 +3,6 @@
 import pytest
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 
 pytestmark = pytest.mark.filterwarnings("error::sqlalchemy.exc.SAWarning")
@@ -35,9 +34,7 @@ def test_upgrade_previous_revision_preserves_menu_links(tmp_path, monkeypatch):
     url = f"sqlite:///{tmp_path / 'previous.sqlite'}"
     monkeypatch.setenv("DATABASE_URL", url)
     config = Config("alembic.ini")
-    scripts = ScriptDirectory.from_config(config)
-    head = scripts.get_revision(scripts.get_current_head())
-    command.upgrade(config, head.down_revision)
+    command.upgrade(config, "c2d3e4f5a6b7")
     engine = create_engine(url)
     try:
         with engine.begin() as c:

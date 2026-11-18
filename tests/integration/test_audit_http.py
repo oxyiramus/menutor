@@ -34,6 +34,12 @@ def register_login(client, email):
     return {"Authorization": f"Bearer {pair.json()['access_token']}"}
 
 
+def active_category_id(client, kind, headers):
+    response = client.get(f"/api/{kind}/categories", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()[0]["id"]
+
+
 def test_real_http_register_write_read_calculate_and_error(http_client):
     c = http_client
     assert c.get("/api/products").status_code == 401
@@ -50,7 +56,7 @@ def test_real_http_register_write_read_calculate_and_error(http_client):
         headers=headers,
         json={
             "name": "Flour",
-            "category_id": 1,
+            "category_id": active_category_id(c, "products", headers),
             "recipe_unit": "g",
             "purchase_unit": "kg",
             "price_amount": "80",
@@ -63,7 +69,7 @@ def test_real_http_register_write_read_calculate_and_error(http_client):
         headers=headers,
         json={
             "name": "Bread",
-            "category_id": 1,
+            "category_id": active_category_id(c, "recipes", headers),
             "servings": 2,
             "ingredients": [
                 {
@@ -96,7 +102,7 @@ def test_http_rejects_foreign_product_links(http_client, route):
         headers=owner,
         json={
             "name": "Secret",
-            "category_id": 1,
+            "category_id": active_category_id(c, "products", owner),
             "recipe_unit": "g",
             "purchase_unit": "kg",
             "price_amount": "80",
@@ -106,7 +112,7 @@ def test_http_rejects_foreign_product_links(http_client, route):
     other = register_login(c, "bob@example.com")
     body = {
         "name": "Attempt",
-        "category_id": 1,
+        "category_id": active_category_id(c, "recipes", other),
         "servings": 2,
         "ingredients": [
             {"product_id": product["id"], "quantity_amount": 200, "quantity_unit": "g"}
@@ -129,7 +135,7 @@ def test_http_menu_rejects_foreign_nested_links(http_client, foreign_field):
         headers=a,
         json={
             "name": "Secret",
-            "category_id": 1,
+            "category_id": active_category_id(c, "products", a),
             "recipe_unit": "g",
             "purchase_unit": "kg",
             "price_amount": "80",
@@ -139,12 +145,20 @@ def test_http_menu_rejects_foreign_nested_links(http_client, foreign_field):
     foreign_recipe = c.post(
         "/api/recipes",
         headers=a,
-        json={"name": "Secret recipe", "category_id": 1, "servings": 2},
+        json={
+            "name": "Secret recipe",
+            "category_id": active_category_id(c, "recipes", a),
+            "servings": 2,
+        },
     ).json()["id"]
     own_recipe = c.post(
         "/api/recipes",
         headers=b,
-        json={"name": "Own recipe", "category_id": 1, "servings": 2},
+        json={
+            "name": "Own recipe",
+            "category_id": active_category_id(c, "recipes", b),
+            "servings": 2,
+        },
     ).json()["id"]
     own_meal = c.get("/api/meal-types", headers=b).json()[0]["id"]
     foreign_meal = c.get("/api/meal-types", headers=a).json()[0]["id"]
@@ -172,7 +186,11 @@ def test_http_recipe_rejects_foreign_subrecipe(http_client, preview):
     rid = c.post(
         "/api/recipes",
         headers=a,
-        json={"name": "Secret recipe", "category_id": 1, "servings": 2},
+        json={
+            "name": "Secret recipe",
+            "category_id": active_category_id(c, "recipes", a),
+            "servings": 2,
+        },
     ).json()["id"]
     b = register_login(c, "bob@example.com")
     route = "/api/recipes/cost-preview" if preview else "/api/recipes"
@@ -181,7 +199,7 @@ def test_http_recipe_rejects_foreign_subrecipe(http_client, preview):
         headers=b,
         json={
             "name": "Attempt",
-            "category_id": 1,
+            "category_id": active_category_id(c, "recipes", b),
             "servings": 2,
             "ingredients": [
                 {"sub_recipe_id": rid, "quantity_amount": 1, "quantity_unit": "serv"}

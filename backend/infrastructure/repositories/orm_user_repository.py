@@ -5,8 +5,31 @@ from sqlalchemy.orm import Session
 from backend.domain.entities.user import User
 from backend.domain.ports.user_repository import UserRepository
 from backend.domain.value_objects.types import UserId
-from backend.infrastructure.database.models import UserRow
+from backend.infrastructure.database.models import (
+    ProductCategoryRow,
+    RecipeCategoryRow,
+    UserRow,
+)
 from backend.infrastructure.repositories.base import BaseOrmRepository
+
+_DEFAULT_RECIPE_CATEGORIES = (
+    "Завтраки",
+    "Обеды",
+    "Ужины",
+    "Основные",
+    "Салаты",
+    "Десерты",
+)
+_DEFAULT_PRODUCT_CATEGORIES = (
+    "Сыпучие",
+    "Молочные",
+    "Мясо",
+    "Овощи",
+    "Фрукты",
+    "Консервы",
+    "Напитки",
+    "Прочее",
+)
 
 
 class OrmUserRepository(
@@ -26,6 +49,12 @@ class OrmUserRepository(
 
     def _make_new_row(self, entity: User) -> UserRow:
         return UserRow(
+            product_categories=[
+                ProductCategoryRow(name=name) for name in _DEFAULT_PRODUCT_CATEGORIES
+            ],
+            recipe_categories=[
+                RecipeCategoryRow(name=name) for name in _DEFAULT_RECIPE_CATEGORIES
+            ],
             email=entity.email,
             nickname=entity.nickname,
             hashed_password=entity.hashed_password,

@@ -23,6 +23,7 @@ from backend.infrastructure.import_.product_csv_importer import ProductCsvImport
 from backend.infrastructure.import_.product_json_importer import ProductJsonImporter
 from backend.infrastructure.import_.recipe_csv_importer import RecipeCsvImporter
 from backend.infrastructure.import_.recipe_json_importer import RecipeJsonImporter
+from tests.integration.api_isolation_helpers import owned_category_id
 from tests.integration.test_audit_calculations import calculation as calculation  # noqa: PLC0414 -- register pytest fixture
 from tests.integration.test_audit_calculations import rich_recipe
 
@@ -89,24 +90,18 @@ def test_menu_full_json_roundtrip_preserves_members_and_piece_overrides(
 
 @pytest.mark.parametrize("reference", ["foreign", "missing"])
 def test_recipe_import_subrecipe_warning_and_no_forbidden_link(
-    conn, calculation, reference
+    conn, calculation, second_owner, reference
 ):
     _, recipes, _, _, _, _ = calculation
     child = rich_recipe(calculation)
     uid = UserId(1)
     if reference == "foreign":
-        conn.execute(
-            __import__("sqlalchemy").text(
-                "INSERT INTO users (id,email,nickname,hashed_password,created_at) VALUES (2,'b@example.com','B','h','2026-01-01')"
-            )
-        )
-        conn.commit()
-        uid = UserId(2)
+        uid = second_owner
     data = json.dumps(
         [
             {
                 "name": "Parent",
-                "category_id": 1,
+                "category_id": owned_category_id(conn, "recipe", uid),
                 "servings": 2,
                 "ingredients": [
                     {
@@ -250,22 +245,16 @@ def test_all_importers_rollback_on_later_invalid_record(
 
 
 @pytest.mark.parametrize("reference", ["foreign-product", "missing-product"])
-def test_import_does_not_create_invalid_product_links(conn, calculation, reference):
-    from sqlalchemy import text
-
+def test_import_does_not_create_invalid_product_links(
+    conn, calculation, second_owner, reference
+):
     _, recipes, _, _, flour, _ = calculation
     uid = UserId(1)
     if reference == "foreign-product":
-        conn.execute(
-            text(
-                "INSERT INTO users (id,email,nickname,hashed_password,created_at) VALUES (2,'b@example.com','B','h','2026-01-01')"
-            )
-        )
-        conn.commit()
-        uid = UserId(2)
+        uid = second_owner
     row = {
         "name": "Attempt",
-        "category_id": 1,
+        "category_id": owned_category_id(conn, "recipe", uid),
         "servings": 2,
         "ingredients": [
             {
@@ -291,10 +280,8 @@ def test_import_does_not_create_invalid_product_links(conn, calculation, referen
 @pytest.mark.parametrize(
     "field", ["product_id", "recipe_id", "meal_type_id", "member_ids"]
 )
-def test_menu_import_rejects_foreign_links(conn, calculation, field):
+def test_menu_import_rejects_foreign_links(conn, calculation, second_owner, field):
     from datetime import time
-
-    from sqlalchemy import text
 
     from backend.domain.entities.family_member import FamilyMember
     from backend.domain.entities.meal_type import MealType
@@ -307,17 +294,18 @@ def test_menu_import_rejects_foreign_links(conn, calculation, field):
 
     _, recipes, menus, _, flour, _ = calculation
     foreign_recipe = rich_recipe(calculation)
-    conn.execute(
-        text(
-            "INSERT INTO users (id,email,nickname,hashed_password,created_at) VALUES (2,'b@example.com','B','h','2026-01-01')"
+    own_recipe = recipes.save(
+        replace(
+            foreign_recipe,
+            id=0,
+            name="Own",
+            user_id=second_owner,
+            category_id=owned_category_id(conn, "recipe", second_owner),
+            ingredients=[],
         )
     )
-    conn.commit()
-    own_recipe = recipes.save(
-        replace(foreign_recipe, id=0, name="Own", user_id=UserId(2), ingredients=[])
-    )
     own_meal = OrmMealTypeRepository(conn).save(
-        MealType(MealTypeId(0), UserId(2), "Own", time(12), False, 0)
+        MealType(MealTypeId(0), second_owner, "Own", time(12), False, 0)
     )
     foreign_member = OrmFamilyMemberRepository(conn).save(
         FamilyMember(FamilyMemberId(0), "Secret", user_id=UserId(1))
@@ -336,5 +324,5 @@ def test_menu_import_rejects_foreign_links(conn, calculation, field):
     registry.register("menus", "json", MenuJsonImporter(menus))
     data = json.dumps([{"name": "Attempt", "slots": [slot]}]).encode()
     with pytest.raises(ImportValidationError):
-        ImportEntities(registry, conn).execute("menus", "json", data, UserId(2))
-    assert menus.find_all(UserId(2)) == []
+        ImportEntities(registry, conn).execute("menus", "json", data, second_owner)
+    assert menus.find_all(second_owner) == []

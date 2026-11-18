@@ -4,17 +4,22 @@ from decimal import Decimal, InvalidOperation
 
 from backend.domain.entities.product import Product
 from backend.domain.exceptions import ImportValidationError
+from backend.domain.ports.category_repository import CategoryRepository
 from backend.domain.ports.product_repository import ProductRepository
 from backend.domain.value_objects.import_result import ImportResult
 from backend.domain.value_objects.money import Money
 from backend.domain.value_objects.types import ProductCategoryId, ProductId, UserId
+from backend.infrastructure.import_.category import resolve_category_id
 
 _REQUIRED = {"name", "category_id", "recipe_unit", "purchase_unit", "price_amount"}
 
 
 class ProductCsvImporter:
-    def __init__(self, repo: ProductRepository) -> None:
+    def __init__(
+        self, repo: ProductRepository, categories: CategoryRepository | None = None
+    ) -> None:
         self._repo = repo
+        self._categories = categories
 
     def import_from_bytes(self, data: bytes, user_id: UserId) -> ImportResult:
         if not data.strip():
@@ -28,6 +33,8 @@ class ProductCsvImporter:
         created = updated = 0
         for i, row in enumerate(reader, start=2):
             missing = _REQUIRED - set(row.keys())
+            if row.get("category_name"):
+                missing.discard("category_id")
             if missing:
                 raise ImportValidationError(
                     f"Строка {i}: отсутствуют обязательные поля: {', '.join(sorted(missing))}"
@@ -44,12 +51,13 @@ class ProductCsvImporter:
                     f"Строка {i}: некорректное значение 'price_amount'"
                 )
 
-            try:
-                category_id = int(row["category_id"])
-            except ValueError:
-                raise ImportValidationError(
-                    f"Строка {i}: некорректное значение 'category_id'"
-                )
+            category_id = resolve_category_id(
+                row.get("category_id"),
+                row.get("category_name"),
+                self._categories,
+                user_id,
+                f"Строка {i}",
+            )
 
             try:
                 conversion_factor = float(row.get("conversion_factor") or 1.0)

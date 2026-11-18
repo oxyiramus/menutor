@@ -4,7 +4,6 @@ import json
 from dataclasses import asdict
 
 import pytest
-from sqlalchemy import text
 
 from backend.application.paginated_result import PAGE_SIZE
 from backend.application.use_cases.crud_base import (
@@ -40,17 +39,7 @@ from backend.infrastructure.repositories.orm_product_repository import (
 from backend.infrastructure.repositories.orm_recipe_repository import (
     OrmRecipeRepository,
 )
-
-
-@pytest.fixture
-def second_owner(conn):
-    conn.execute(
-        text(
-            "INSERT INTO users (id,email,nickname,hashed_password,created_at) VALUES (2,'second@example.com','B','hash','2026-01-01')"
-        )
-    )
-    conn.commit()
-    return UserId(2)
+from tests.integration.api_isolation_helpers import owned_category_id
 
 
 @pytest.mark.parametrize("kind", ["recipe", "family", "menu"])
@@ -59,10 +48,17 @@ def test_two_owners_read_edit_batch_delete(conn, second_owner, kind):
     if kind == "recipe":
         repo = OrmRecipeRepository(conn)
         create = lambda name, owner: CreateRecipe(repo).execute(
-            RecipeData(name, RecipeCategoryId(1), 2), owner
+            RecipeData(
+                name, RecipeCategoryId(owned_category_id(conn, "recipe", owner)), 2
+            ),
+            owner,
         )
         edit = lambda entity: EditRecipe(repo).execute(
-            entity.id, RecipeData("Stolen", RecipeCategoryId(1), 2), other
+            entity.id,
+            RecipeData(
+                "Stolen", RecipeCategoryId(owned_category_id(conn, "recipe", other)), 2
+            ),
+            other,
         )
     elif kind == "family":
         repo = OrmFamilyMemberRepository(conn)
@@ -97,7 +93,14 @@ def test_recipe_pagination_combines_search_category_owner(conn, second_owner):
         ).id
         for i in range(PAGE_SIZE + 2)
     ]
-    create.execute(RecipeData("Apple foreign", RecipeCategoryId(1), 2), second_owner)
+    create.execute(
+        RecipeData(
+            "Apple foreign",
+            RecipeCategoryId(owned_category_id(conn, "recipe", second_owner)),
+            2,
+        ),
+        second_owner,
+    )
     create.execute(
         RecipeData("Apple other category", RecipeCategoryId(2), 2), UserId(1)
     )
@@ -132,11 +135,21 @@ def test_export_excludes_foreign_ids_even_when_explicitly_requested(
     registry.register("menus", "json", MenuJsonExporter())
     if kind == "products":
         create = lambda name, uid: CreateProduct(products).execute(
-            ProductData(name, ProductCategoryId(1), "g", "kg", Money(Decimal(1))), uid
+            ProductData(
+                name,
+                ProductCategoryId(owned_category_id(conn, "product", uid)),
+                "g",
+                "kg",
+                Money(Decimal(1)),
+            ),
+            uid,
         )
     elif kind == "recipes":
         create = lambda name, uid: CreateRecipe(recipes).execute(
-            RecipeData(name, RecipeCategoryId(1), 2), uid
+            RecipeData(
+                name, RecipeCategoryId(owned_category_id(conn, "recipe", uid)), 2
+            ),
+            uid,
         )
     else:
         create = lambda name, uid: CreateMenu(menus).execute(name, uid)

@@ -18,7 +18,9 @@ from backend.infrastructure.database.models import (
     PreferenceProductRow,
     PreferenceRecipeCategoryRow,
     PreferenceRow,
+    ProductCategoryRow,
     ProductRow,
+    RecipeCategoryRow,
 )
 from backend.infrastructure.repositories.ownership import require_owned
 
@@ -70,6 +72,14 @@ class OrmPreferenceRepository(PreferenceRepository):
         return self._row_to_entity(row)
 
     def save(self, preference: Preference) -> Preference:
+        for category_id in preference.category_ids:
+            require_owned(
+                self._session, ProductCategoryRow, category_id, preference.user_id
+            )
+        for recipe_category_id in preference.recipe_category_ids:
+            require_owned(
+                self._session, RecipeCategoryRow, recipe_category_id, preference.user_id
+            )
         for product_id in preference.product_ids:
             require_owned(self._session, ProductRow, product_id, preference.user_id)
         row: PreferenceRow | None

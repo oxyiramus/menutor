@@ -63,7 +63,12 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
+    with connectable.begin() as connection:
+        if connection.dialect.name == "sqlite":
+            # SQLite batch migrations rebuild tables referenced by foreign keys.
+            connection.exec_driver_sql("PRAGMA foreign_keys = OFF")
+            connection.exec_driver_sql("BEGIN")
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

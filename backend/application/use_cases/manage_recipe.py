@@ -173,5 +173,5 @@ class ListRecipeCategories:
     def __init__(self, repo: RecipeCategoryRepository) -> None:
         self._repo = repo
 
-    def execute(self) -> list[ActiveCategory]:
-        return self._repo.find_active()
+    def execute(self, user_id: UserId) -> list[ActiveCategory]:
+        return self._repo.find_active(user_id)

@@ -39,6 +39,7 @@ from backend.application.use_cases.plan_menu import (
     LoadMenu,
 )
 from backend.domain.entities.menu import MenuSlot
+from backend.domain.entities.user import User
 from backend.domain.services.portion_calculator import PortionCalculator
 from backend.domain.services.shopping_list_builder import ShoppingListBuilder
 from backend.domain.services.unit_converter import UnitConverter
@@ -75,13 +76,9 @@ from backend.infrastructure.repositories.orm_recipe_category_repository import (
 from backend.infrastructure.repositories.orm_recipe_repository import (
     OrmRecipeRepository,
 )
+from backend.infrastructure.repositories.orm_user_repository import OrmUserRepository
 
 TEST_USER_ID = UserId(1)
-
-_SEED_USER_SQL = (
-    "INSERT INTO users (email, nickname, hashed_password, created_at) "
-    "VALUES ('test@example.com', 'tester', 'hashed', '2025-01-01 00:00:00')"
-)
 
 _SEED_MEAL_TYPES_SQL = [
     "INSERT INTO meal_types (user_id, name, time, is_system, sort_order) VALUES (1, 'Завтрак', '08:00', 1, 0)",
@@ -97,7 +94,9 @@ def db():
     apply_schema(engine)
     session = Session(engine)
     seed_defaults(session)
-    session.execute(sa_text(_SEED_USER_SQL))
+    OrmUserRepository(session).save(User(
+        id=UserId(0), email="test@example.com", nickname="tester", hashed_password="hashed"
+    ))
     for sql in _SEED_MEAL_TYPES_SQL:
         session.execute(sa_text(sql))
     session.commit()
@@ -126,11 +125,11 @@ class TestFullUserScenario:
         uid = TEST_USER_ID
 
         # --- Step 1: Get default categories ---
-        product_cats = repos["product_cat"].find_active()
+        product_cats = repos["product_cat"].find_active(TEST_USER_ID)
         assert len(product_cats) > 0
         bakery_cat_id = ProductCategoryId(product_cats[0][0])
 
-        recipe_cats = repos["recipe_cat"].find_active()
+        recipe_cats = repos["recipe_cat"].find_active(TEST_USER_ID)
         assert len(recipe_cats) > 0
         breakfast_cat_id = RecipeCategoryId(recipe_cats[0][0])
 
@@ -248,10 +247,10 @@ class TestFullUserScenario:
     def test_product_recipe_crud(self, db, repos) -> None:
         """Create, edit, list, delete products and recipes."""
         uid = TEST_USER_ID
-        product_cats = repos["product_cat"].find_active()
+        product_cats = repos["product_cat"].find_active(TEST_USER_ID)
         cat_id = ProductCategoryId(product_cats[0][0])
 
-        recipe_cats = repos["recipe_cat"].find_active()
+        recipe_cats = repos["recipe_cat"].find_active(TEST_USER_ID)
         rcat_id = RecipeCategoryId(recipe_cats[0][0])
 
         # --- Product CRUD ---

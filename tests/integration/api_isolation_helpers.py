@@ -74,3 +74,12 @@ def persisted_owner(kind, entity_id):
         return session.execute(
             select(table.c.user_id).where(table.c.id == entity_id)
         ).scalar_one()
+
+
+def owned_category_id(session, kind, user_id):
+    from sqlalchemy import text
+
+    return session.execute(
+        text(f"SELECT MIN(id) FROM {kind}_categories WHERE user_id=:owner"),
+        {"owner": user_id},
+    ).scalar_one()

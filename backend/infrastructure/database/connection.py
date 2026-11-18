@@ -1,9 +1,12 @@
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, event, text
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import Session
 
 from backend.infrastructure.database.models import Base
+from backend.infrastructure.database.personal_categories import (
+    migrate_personal_categories,
+)
 
 
 def get_engine(db_url: str = "sqlite:///data/menutor.db") -> Engine:
@@ -26,6 +29,7 @@ def get_engine(db_url: str = "sqlite:///data/menutor.db") -> Engine:
         @event.listens_for(engine, "connect")
         def _enable_fk(conn, _record):  # type: ignore[no-untyped-def]
             conn.execute("PRAGMA foreign_keys = ON")
+
     else:
         engine = create_engine(db_url)
 
@@ -45,14 +49,12 @@ def _migrate_menu_slots(conn) -> None:  # type: ignore[no-untyped-def]
     columns = {row[1] for row in info}
     if "product_id" in columns:
         return
-    conn.execute(
-        text("""
+    conn.execute(text("""
         CREATE TABLE IF NOT EXISTS _menu_slots_backup (
             menu_id INTEGER, day INTEGER, meal_type TEXT,
             recipe_id INTEGER, servings_override REAL
         )
-    """)
-    )
+    """))
     conn.execute(
         text(
             "INSERT INTO _menu_slots_backup "
@@ -145,109 +147,49 @@ def apply_schema(engine: Engine) -> None:
         had_menu_slots = _run_sqlite_migrations(engine)
 
     Base.metadata.create_all(engine)
+    with engine.connect() as conn:
+        inspector = inspect(conn)
+        if any(
+            "user_id" not in {column["name"] for column in inspector.get_columns(table)}
+            for table in ("product_categories", "recipe_categories")
+        ):
+            if _is_sqlite(engine):
+                conn.exec_driver_sql("PRAGMA foreign_keys = OFF")
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+            try:
+                migrate_personal_categories(conn)
+                if (
+                    _is_sqlite(engine)
+                    and conn.exec_driver_sql("PRAGMA foreign_key_check").first()
+                ):
+                    raise RuntimeError("Category migration left invalid foreign keys")
+                conn.commit()
+            finally:
+                conn.rollback()
+                if _is_sqlite(engine):
+                    conn.exec_driver_sql("PRAGMA foreign_keys = ON")
 
     if had_menu_slots and _is_sqlite(engine):
         _restore_sqlite_menu_slots_backup(engine)
 
 
 def seed_defaults(session: Session) -> None:
-    """Populate lookup tables with default unit and category values."""
-    dialect = session.bind.dialect.name  # type: ignore[union-attr]
-    if dialect == "sqlite":
-        _seed_defaults_sqlite(session)
-    else:
-        _seed_defaults_pg(session)
+    """Populate the shared unit catalog."""
+    session.execute(
+        text(
+            "INSERT INTO units (name, unit_group) VALUES (:n, :g) ON CONFLICT (name) DO NOTHING"
+        ),
+        [
+            {"n": "g", "g": "weight"},
+            {"n": "kg", "g": "weight"},
+            {"n": "ml", "g": "volume"},
+            {"n": "l", "g": "volume"},
+            {"n": "tsp", "g": "volume"},
+            {"n": "tbsp", "g": "volume"},
+            {"n": "pcs", "g": "count_pcs"},
+            {"n": "box", "g": "count_box"},
+            {"n": "pack", "g": "count_pack"},
+            {"n": "serv", "g": "servings"},
+        ],
+    )
     session.commit()
-
-
-def _seed_defaults_sqlite(session: Session) -> None:
-    session.execute(
-        text("INSERT OR IGNORE INTO units (name, unit_group) VALUES (:n, :g)"),
-        [
-            {"n": "g", "g": "weight"},
-            {"n": "kg", "g": "weight"},
-            {"n": "ml", "g": "volume"},
-            {"n": "l", "g": "volume"},
-            {"n": "tsp", "g": "volume"},
-            {"n": "tbsp", "g": "volume"},
-            {"n": "pcs", "g": "count_pcs"},
-            {"n": "box", "g": "count_box"},
-            {"n": "pack", "g": "count_pack"},
-            {"n": "serv", "g": "servings"},
-        ],
-    )
-    session.execute(
-        text("INSERT OR IGNORE INTO recipe_categories (name, active) VALUES (:n, 1)"),
-        [
-            {"n": "Завтраки"},
-            {"n": "Обеды"},
-            {"n": "Ужины"},
-            {"n": "Основные"},
-            {"n": "Салаты"},
-            {"n": "Десерты"},
-        ],
-    )
-    session.execute(
-        text("INSERT OR IGNORE INTO product_categories (name, active) VALUES (:n, 1)"),
-        [
-            {"n": "Сыпучие"},
-            {"n": "Молочные"},
-            {"n": "Мясо"},
-            {"n": "Овощи"},
-            {"n": "Фрукты"},
-            {"n": "Консервы"},
-            {"n": "Напитки"},
-            {"n": "Прочее"},
-        ],
-    )
-
-
-def _seed_defaults_pg(session: Session) -> None:
-    session.execute(
-        text(
-            "INSERT INTO units (name, unit_group) VALUES (:n, :g) "
-            "ON CONFLICT (name) DO NOTHING"
-        ),
-        [
-            {"n": "g", "g": "weight"},
-            {"n": "kg", "g": "weight"},
-            {"n": "ml", "g": "volume"},
-            {"n": "l", "g": "volume"},
-            {"n": "tsp", "g": "volume"},
-            {"n": "tbsp", "g": "volume"},
-            {"n": "pcs", "g": "count_pcs"},
-            {"n": "box", "g": "count_box"},
-            {"n": "pack", "g": "count_pack"},
-            {"n": "serv", "g": "servings"},
-        ],
-    )
-    session.execute(
-        text(
-            "INSERT INTO recipe_categories (name, active) VALUES (:n, 1) "
-            "ON CONFLICT (name) DO NOTHING"
-        ),
-        [
-            {"n": "Завтраки"},
-            {"n": "Обеды"},
-            {"n": "Ужины"},
-            {"n": "Основные"},
-            {"n": "Салаты"},
-            {"n": "Десерты"},
-        ],
-    )
-    session.execute(
-        text(
-            "INSERT INTO product_categories (name, active) VALUES (:n, 1) "
-            "ON CONFLICT (name) DO NOTHING"
-        ),
-        [
-            {"n": "Сыпучие"},
-            {"n": "Молочные"},
-            {"n": "Мясо"},
-            {"n": "Овощи"},
-            {"n": "Фрукты"},
-            {"n": "Консервы"},
-            {"n": "Напитки"},
-            {"n": "Прочее"},
-        ],
-    )

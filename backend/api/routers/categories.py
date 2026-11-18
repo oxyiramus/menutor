@@ -45,7 +45,7 @@ def list_product_categories(
 ) -> list[CategoryResponse]:
     return [
         category_to_response(c)
-        for c in _bundle(container, "product").list_all.execute()
+        for c in _bundle(container, "product").list_all.execute(user.id)
     ]
 
 
@@ -60,7 +60,11 @@ def create_product_category(
     container: Annotated[ApplicationContainer, Depends(get_container)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, int]:
-    return {"id": _bundle(container, "product").create.execute(body.name, body.color)}
+    return {
+        "id": _bundle(container, "product").create.execute(
+            body.name, body.color, user_id=user.id
+        )
+    }
 
 
 @router.put("/product-categories/{category_id}", response_model=dict[str, int])
@@ -73,7 +77,7 @@ def edit_product_category(
 ) -> dict[str, int]:
     return {
         "id": _bundle(container, "product").edit.execute(
-            category_id, body.name, body.color
+            category_id, body.name, body.color, user_id=user.id
         )
     }
 
@@ -89,7 +93,7 @@ def delete_product_category(
     user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     b = _bundle(container, "product")
-    (b.hard_delete if hard else b.delete).execute(category_id)
+    (b.hard_delete if hard else b.delete).execute(category_id, user.id)
 
 
 @router.post(
@@ -102,7 +106,7 @@ def activate_product_category(
     container: Annotated[ApplicationContainer, Depends(get_container)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    _bundle(container, "product").activate.execute(category_id)
+    _bundle(container, "product").activate.execute(category_id, user.id)
 
 
 @router.get(
@@ -115,7 +119,7 @@ def check_product_category_used(
     user: Annotated[User, Depends(get_current_user)],
 ) -> CategoryUsedResponse:
     return CategoryUsedResponse(
-        used=_bundle(container, "product").check_used.execute(category_id)
+        used=_bundle(container, "product").check_used.execute(category_id, user.id)
     )
 
 
@@ -132,7 +136,7 @@ def move_and_delete_product_category(
 ) -> None:
     try:
         _bundle(container, "product").move_and_delete.execute(
-            category_id, body.target_category_id
+            category_id, body.target_category_id, user.id
         )
     except AppError as exc:
         raise HTTPException(
@@ -150,7 +154,8 @@ def list_recipe_categories(
     user: Annotated[User, Depends(get_current_user)],
 ) -> list[CategoryResponse]:
     return [
-        category_to_response(c) for c in _bundle(container, "recipe").list_all.execute()
+        category_to_response(c)
+        for c in _bundle(container, "recipe").list_all.execute(user.id)
     ]
 
 
@@ -165,7 +170,11 @@ def create_recipe_category(
     container: Annotated[ApplicationContainer, Depends(get_container)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, int]:
-    return {"id": _bundle(container, "recipe").create.execute(body.name, body.color)}
+    return {
+        "id": _bundle(container, "recipe").create.execute(
+            body.name, body.color, user_id=user.id
+        )
+    }
 
 
 @router.put("/recipe-categories/{category_id}", response_model=dict[str, int])
@@ -178,7 +187,7 @@ def edit_recipe_category(
 ) -> dict[str, int]:
     return {
         "id": _bundle(container, "recipe").edit.execute(
-            category_id, body.name, body.color
+            category_id, body.name, body.color, user_id=user.id
         )
     }
 
@@ -194,7 +203,7 @@ def delete_recipe_category(
     user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     b = _bundle(container, "recipe")
-    (b.hard_delete if hard else b.delete).execute(category_id)
+    (b.hard_delete if hard else b.delete).execute(category_id, user.id)
 
 
 @router.post(
@@ -207,7 +216,7 @@ def activate_recipe_category(
     container: Annotated[ApplicationContainer, Depends(get_container)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    _bundle(container, "recipe").activate.execute(category_id)
+    _bundle(container, "recipe").activate.execute(category_id, user.id)
 
 
 @router.get(
@@ -220,7 +229,7 @@ def check_recipe_category_used(
     user: Annotated[User, Depends(get_current_user)],
 ) -> CategoryUsedResponse:
     return CategoryUsedResponse(
-        used=_bundle(container, "recipe").check_used.execute(category_id)
+        used=_bundle(container, "recipe").check_used.execute(category_id, user.id)
     )
 
 
@@ -237,7 +246,7 @@ def move_and_delete_recipe_category(
 ) -> None:
     try:
         _bundle(container, "recipe").move_and_delete.execute(
-            category_id, body.target_category_id
+            category_id, body.target_category_id, user.id
         )
     except AppError as exc:
         raise HTTPException(
