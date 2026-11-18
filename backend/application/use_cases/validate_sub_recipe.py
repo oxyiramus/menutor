@@ -31,6 +31,9 @@ class ValidateSubRecipe:
         if sub is None or sub.user_id != user_id:
             return ValidationResult(valid=False, error="Рецепт не найден")
         if parent_recipe_id is not None:
+            parent = self._repo.get_by_id(parent_recipe_id)
+            if parent is None or parent.user_id != user_id:
+                return ValidationResult(valid=False, error="Рецепт не найден")
             try:
                 self._validator.validate(parent_recipe_id, [sub_recipe_id])
             except CircularDependencyError as e:

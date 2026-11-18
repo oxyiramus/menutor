@@ -39,7 +39,7 @@ def _wire_recipes(infra: _Infrastructure) -> dict[str, Any]:
             infra.recipe_repo, infra.product_repo, infra.builder
         ),
         "preview_flattened_products": PreviewFlattenedProducts(
-            infra.product_repo, infra.builder
+            infra.recipe_repo, infra.product_repo, infra.builder
         ),
         "calculate_recipe_cost": CalculateRecipeCost(
             infra.recipe_repo,
