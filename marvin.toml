@@ -1,0 +1,17 @@
+[project]
+checkout = "../menutor"
+repo_id = "menutor"
+base_branch = "dev"
+workflow = "tdd"
+
+[kaneo]
+project_id = "sp8nutr6mviyn5yw5exfgmye"
+ready_column = "AI ready"
+in_progress_column = "AI in progress"
+human_review_column = "Human review"
+
+[limits]
+max_reviews = 2
+max_reworks = 1
+technical_retries = 1
+timeout_seconds = 1800
