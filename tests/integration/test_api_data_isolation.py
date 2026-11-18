@@ -219,7 +219,12 @@ def test_profile_and_password_only_change_current_user(isolation_users, directio
                 select(user_table).where(user_table.c.id == other["id"])
             ).one()
         )
-    before = request_ok(client, "GET", "auth/me", other["headers"])
+    profile_fields = ("id", "email", "nickname")
+    for user in (own, other, own):
+        profile = request_ok(client, "GET", "auth/me", user["headers"])
+        assert {field: profile[field] for field in profile_fields} == {
+            field: user[field] for field in profile_fields
+        }
     result = request_ok(
         client,
         "PATCH",
@@ -240,7 +245,13 @@ def test_profile_and_password_only_change_current_user(isolation_users, directio
         },
         204,
     )
-    assert request_ok(client, "GET", "auth/me", other["headers"]) == before
+    for user, nickname in ((own, "Changed"), (other, other["nickname"])):
+        profile = request_ok(client, "GET", "auth/me", user["headers"])
+        assert {field: profile[field] for field in profile_fields} == {
+            "id": user["id"],
+            "email": user["email"],
+            "nickname": nickname,
+        }
     with Session(app.state.container._engine) as session:
         assert (
             tuple(
