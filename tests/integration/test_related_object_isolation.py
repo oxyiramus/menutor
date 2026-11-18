@@ -13,7 +13,6 @@ def snapshots(users):
 @pytest.mark.parametrize(
     "kind,reference",
     [
-        ("preferences", "product_id"),
         ("recipes", "product_id"),
         ("recipes", "sub_recipe_id"),
         ("family-members", "preference_id"),
@@ -22,6 +21,25 @@ def snapshots(users):
 @pytest.mark.parametrize("method", ["POST", "PUT"])
 @pytest.mark.parametrize("mixed", [False, True])
 def test_related_references_are_atomic(
+    isolation_users, direction, kind, reference, method, mixed
+):
+    assert_related_reference_isolation(
+        isolation_users, direction, kind, reference, method, mixed
+    )
+
+
+@pytest.mark.parametrize("direction", [0, 1])
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_preference_product_ids_require_ownership(
+    isolation_users, direction, method, mixed
+):
+    assert_related_reference_isolation(
+        isolation_users, direction, "preferences", "product_id", method, mixed
+    )
+
+
+def assert_related_reference_isolation(
     isolation_users, direction, kind, reference, method, mixed
 ):
     client, users = isolation_users
@@ -33,6 +51,15 @@ def test_related_references_are_atomic(
     }[reference]
     own_id = own["objects"][target]["id"]
     foreign_id = other["objects"][target]["id"]
+    if method == "PUT":
+        previous_id = request_ok(
+            client,
+            "POST",
+            target,
+            own["headers"],
+            dict(own["bodies"][target], name="Previous reference"),
+            201,
+        )["id"]
     if reference == "sub_recipe_id":
         own_id = request_ok(
             client,
@@ -62,7 +89,10 @@ def test_related_references_are_atomic(
 
     # Establish real existing links before testing a rejected replacement.
     if method == "PUT":
-        request_ok(client, "PUT", path, own["headers"], body([own_id]))
+        previous = dict(body([previous_id]), name="Previous aggregate")
+        if kind == "recipes":
+            previous["steps"] = [{"order": 0, "description": "Previous preparation"}]
+        request_ok(client, "PUT", path, own["headers"], previous)
     before = snapshots(users)
     request_ok(
         client,
@@ -89,14 +119,44 @@ def test_related_references_are_atomic(
     else:
         field = "product_ids" if kind == "preferences" else "preference_ids"
         assert result[field] == [own_id]
-    assert user_data_snapshot(other["id"]) == before[1 - direction]
+    after = snapshots(users)
+    entity_id = result["id"]
+    state = after[direction]
+    table = kind.replace("-", "_")
+    assert [row[2] for row in state[table] if row[0] == entity_id] == [
+        "Changed aggregate"
+    ]
+    if kind == "recipes":
+        reference_column = 2 if reference == "product_id" else 3
+        assert [
+            row[reference_column]
+            for row in state["recipe_ingredients"]
+            if row[1] == entity_id
+        ] == [own_id]
+        assert [row[2] for row in state["cooking_steps"] if row[0] == entity_id] == [
+            "Changed preparation"
+        ]
+    else:
+        link_table = (
+            "preference_products"
+            if kind == "preferences"
+            else "family_member_preferences"
+        )
+        assert [row[2] for row in state[link_table] if row[1] == entity_id] == [own_id]
+    assert after[1 - direction] == before[1 - direction]
 
 
 @pytest.mark.parametrize("direction", [0, 1])
 @pytest.mark.parametrize(
-    "reference", ["recipe_id", "product_id", "meal_type_id", "member_ids"]
+    "reference,mixed",
+    [
+        ("recipe_id", False),
+        ("product_id", False),
+        ("meal_type_id", False),
+        ("member_ids", False),
+        ("member_ids", True),
+    ],
 )
-@pytest.mark.parametrize("mixed", [False, True])
 def test_menu_rejects_foreign_references(isolation_users, direction, reference, mixed):
     client, users = isolation_users
     own, other = users[direction], users[1 - direction]
@@ -251,5 +311,90 @@ def test_assigning_preferences_requires_member_owner(isolation_users, direction)
             preference_ids=[own["objects"]["preferences"]["id"]],
         ),
         404,
+    )
+    assert snapshots(users) == before
+
+
+@pytest.mark.parametrize("direction", [0, 1])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_shopping_list_rejects_foreign_products(isolation_users, direction, mixed):
+    client, users = isolation_users
+    own, other = users[direction], users[1 - direction]
+    saved = own["objects"]["shopping-lists"]
+    path = f"shopping-lists/{saved['id']}"
+    item = own["bodies"]["shopping-lists"]["items"][0]
+    owned_item = dict(item, product_id=own["objects"]["products"]["id"])
+    foreign_item = dict(item, product_id=other["objects"]["products"]["id"])
+    before = snapshots(users)
+    request_ok(
+        client,
+        "PUT",
+        path,
+        own["headers"],
+        {
+            "name": "Replacement",
+            "items": [owned_item, foreign_item] if mixed else [foreign_item],
+        },
+        404,
+    )
+    assert snapshots(users) == before
+
+    result = request_ok(
+        client,
+        "PUT",
+        path,
+        own["headers"],
+        {"name": "Replacement", "items": [owned_item]},
+    )
+    assert result["name"] == "Replacement"
+    assert [item["product_id"] for item in result["items"]] == [
+        owned_item["product_id"]
+    ]
+    after = snapshots(users)
+    assert [(row[0], row[2]) for row in after[direction]["shopping_lists"]] == [
+        (saved["id"], "Replacement")
+    ]
+    assert [row[1:3] for row in after[direction]["shopping_list_items"]] == [
+        (saved["id"], owned_item["product_id"])
+    ]
+    assert after[1 - direction] == before[1 - direction]
+
+
+def test_delete_preference_preserves_unrelated_legacy_assignments(isolation_users):
+    from sqlalchemy.orm import Session
+
+    from backend.api.main import app
+    from backend.infrastructure.database.models import FamilyMemberPreferenceRow
+
+    client, users = isolation_users
+    own, other = users
+    preference_id = own["objects"]["preferences"]["id"]
+    second = request_ok(
+        client,
+        "POST",
+        "family-members",
+        own["headers"],
+        {"name": "Second member", "preference_ids": [preference_id]},
+        201,
+    )
+    with Session(app.state.container._engine) as session:
+        session.add(
+            FamilyMemberPreferenceRow(
+                family_member_id=second["id"],
+                preference_id=other["objects"]["preferences"]["id"],
+            )
+        )
+        session.commit()
+
+    before = snapshots(users)
+    expected = before[0]
+    expected["preferences"] = [
+        row for row in expected["preferences"] if row[0] != preference_id
+    ]
+    expected["family_member_preferences"] = [
+        row for row in expected["family_member_preferences"] if row[2] != preference_id
+    ]
+    request_ok(
+        client, "DELETE", f"preferences/{preference_id}", own["headers"], status=204
     )
     assert snapshots(users) == before

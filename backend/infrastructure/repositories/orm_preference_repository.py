@@ -93,6 +93,7 @@ class OrmPreferenceRepository(PreferenceRepository):
         if not ids:
             return
         int_ids = [int(i) for i in ids]
+        # The foreign key cascades deletion to family member assignments.
         self._session.query(PreferenceRow).filter(PreferenceRow.id.in_(int_ids)).delete(
             synchronize_session=False
         )
