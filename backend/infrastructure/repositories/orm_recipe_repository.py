@@ -113,8 +113,15 @@ class OrmRecipeRepository(
     def _row_to_entity(self, row: Any) -> Recipe:
         # Older imports could persist links to another user's ingredients.
         # Filter them on read so neither calculations nor exports can use them.
-        ingredients = self._session.scalars(
-            select(RecipeIngredientRow)
+        ingredients = self._session.execute(
+            select(
+                RecipeIngredientRow.product_id,
+                RecipeIngredientRow.sub_recipe_id,
+                RecipeIngredientRow.amount,
+                RecipeIngredientRow.unit,
+                RecipeIngredientRow.ingredient_order,
+            )
+            .select_from(RecipeIngredientRow)
             .outerjoin(ProductRow, RecipeIngredientRow.product_id == ProductRow.id)
             .outerjoin(RecipeRow, RecipeIngredientRow.sub_recipe_id == RecipeRow.id)
             .where(
@@ -123,7 +130,7 @@ class OrmRecipeRepository(
                 or_(RecipeRow.user_id.is_(None), RecipeRow.user_id == row.user_id),
             )
             .order_by(RecipeIngredientRow.ingredient_order, RecipeIngredientRow.id)
-        )
+        ).tuples()
         return Recipe(
             id=RecipeId(row.id),
             name=row.name,
@@ -131,17 +138,15 @@ class OrmRecipeRepository(
             ingredients=[
                 RecipeIngredient(
                     product_id=(
-                        ProductId(r.product_id) if r.product_id is not None else None
+                        ProductId(product_id) if product_id is not None else None
                     ),
                     sub_recipe_id=(
-                        RecipeId(r.sub_recipe_id)
-                        if r.sub_recipe_id is not None
-                        else None
+                        RecipeId(sub_recipe_id) if sub_recipe_id is not None else None
                     ),
-                    quantity=Quantity(r.amount, r.unit),
-                    order=r.ingredient_order,
+                    quantity=Quantity(amount, unit),
+                    order=order,
                 )
-                for r in ingredients
+                for product_id, sub_recipe_id, amount, unit, order in ingredients
             ],
             steps=[
                 CookingStep(order=r.step_order, description=r.description)
