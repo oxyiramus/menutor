@@ -4,7 +4,9 @@ import json
 
 import pytest
 from pypdf import PdfReader
+from sqlalchemy import insert
 
+from backend.infrastructure.database.models import RecipeIngredientRow
 from tests.integration.api_isolation_helpers import (
     persisted_owner,
     request_ok,
@@ -260,11 +262,33 @@ def test_copy_and_generation_require_owner(derived_users, kind, suffix, body, st
         ]
 
 
+def recipe_links(row, fmt):
+    ingredients = (
+        json.loads(row["ingredients_json"]) if fmt == "csv" else row["ingredients"]
+    )
+    return [(item.get("product_id"), item.get("sub_recipe_id")) for item in ingredients]
+
+
 @pytest.mark.parametrize("kind,fmt", EXPORT_FORMATS)
 @pytest.mark.parametrize("selection", ["all", "foreign", "mixed"])
 def test_entity_exports_filter_rows(derived_users, kind, fmt, selection):
     client, (alice, bob) = derived_users
     own, foreign = alice["objects"], bob["objects"]
+    if kind == "menus":
+        request_ok(
+            client,
+            "POST",
+            f"menus/{own['menus']['id']}/slots",
+            alice["headers"],
+            {
+                "day": 1,
+                "meal_type_id": own["meal-types"]["id"],
+                "product_id": own["products"]["id"],
+                "quantity": 100,
+                "unit": "g",
+                "member_ids": [own["family-members"]["id"]],
+            },
+        )
     params = {}
     expected = [(own[kind]["id"], own[kind]["name"])]
     if selection == "foreign":
@@ -290,6 +314,32 @@ def test_entity_exports_filter_rows(derived_users, kind, fmt, selection):
     )
     assert sorted((int(row["id"]), row["name"]) for row in rows) == sorted(expected)
     assert bob["nickname"] not in response.text
+    if kind == "recipes":
+        expected_links = {
+            own["recipes"]["id"]: (own["products"]["id"], None),
+            own["parent"]["id"]: (None, own["recipes"]["id"]),
+        }
+        for row in rows:
+            assert recipe_links(row, fmt) == [expected_links[int(row["id"])]]
+    elif kind == "menus":
+        for row in rows:
+            assert [
+                (
+                    slot["recipe_id"],
+                    slot["product_id"],
+                    slot["meal_type_id"],
+                    slot["member_ids"],
+                )
+                for slot in row["slots"]
+            ] == [
+                (own["recipes"]["id"], None, own["meal-types"]["id"], []),
+                (
+                    None,
+                    own["products"]["id"],
+                    own["meal-types"]["id"],
+                    [own["family-members"]["id"]],
+                ),
+            ]
 
 
 @pytest.mark.parametrize(
@@ -512,3 +562,61 @@ def test_filtered_generation_ignores_foreign_exclusion_id(derived_users):
     )
     assert excluded["items"] == []
     assert user_data_snapshot(bob["id"]) == before
+
+
+@pytest.mark.parametrize("foreign_link", ["product_id", "sub_recipe_id"])
+def test_derived_recipe_reads_skip_legacy_foreign_ingredient(
+    derived_users, foreign_link
+):
+    client, (alice, bob) = derived_users
+    own, foreign = alice["objects"], bob["objects"]
+    headers = alice["headers"]
+    kind = "products" if foreign_link == "product_id" else "recipes"
+    # Reproduce a persisted row from before ownership was enforced on writes.
+    with client.app.state.container._engine.begin() as connection:
+        connection.execute(
+            insert(RecipeIngredientRow).values(
+                recipe_id=own["recipes"]["id"],
+                **{foreign_link: foreign[kind]["id"]},
+                amount=100,
+                unit="g",
+                ingredient_order=1,
+            )
+        )
+
+    child = ingredient("sub_recipe_id", own["recipes"]["id"])
+    parent_path = f"recipes/{own['parent']['id']}"
+    before = user_data_snapshot(alice["id"])
+    saved = request_ok(client, "GET", parent_path, headers)
+    assert saved["cost_per_portion"] == 2
+    saved_child = request_ok(client, "GET", f"recipes/{own['recipes']['id']}", headers)
+    assert recipe_links(saved_child, "json") == [(own["products"]["id"], None)]
+    for fmt in ("csv", "json", "json_compact"):
+        row = export_row(client, alice, "recipes", fmt)
+        assert recipe_links(row, fmt) == [(own["products"]["id"], None)]
+    cost = request_ok(
+        client,
+        "POST",
+        "recipes/cost-preview",
+        headers,
+        {"servings": 1, "ingredients": [child]},
+    )
+    assert cost["total_cost"] == 4
+    assert [
+        (row["product_id"], row["product_name"]) for row in cost["ingredient_costs"]
+    ] == [(own["products"]["id"], own["products"]["name"])]
+
+    for method, suffix, body in (
+        ("GET", "flattened-products", None),
+        ("POST", "flattened-products-preview", {"ingredients": [child]}),
+    ):
+        rows = request_ok(client, method, f"{parent_path}/{suffix}", headers, body)
+        assert [(row["product_id"], row["product_name"]) for row in rows] == [
+            (own["products"]["id"], own["products"]["name"])
+        ]
+
+    summary = request_ok(client, "GET", f"menus/{own['menus']['id']}/summary", headers)
+    assert [row["product_id"] for row in summary["recipes"][0]["ingredients"]] == [
+        own["products"]["id"]
+    ]
+    assert user_data_snapshot(alice["id"]) == before
