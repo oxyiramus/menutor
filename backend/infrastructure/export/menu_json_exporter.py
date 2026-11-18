@@ -32,7 +32,7 @@ class MenuJsonExporter:
         data = [self._to_dict(m) for m in entities]
         return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         examples = [
             {
                 "id": 1,

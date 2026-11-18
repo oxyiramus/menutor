@@ -54,7 +54,7 @@ class ShoppingListCsvExporter:
         self._write_rows(csv.writer(buf), shopping_list)
         return buf.getvalue().encode("utf-8")
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         buf = io.StringIO()
         writer = csv.writer(buf)
         writer.writerow(_HEADERS)

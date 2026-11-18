@@ -25,12 +25,11 @@ class ProductJsonExporter:
         data = [self._to_dict(p) for p in entities]
         return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         examples = [
             {
-                "id": 1,
                 "name": "Мука",
-                "category_id": 1,
+                "category_id": category_id,
                 "recipe_unit": "g",
                 "purchase_unit": "kg",
                 "price_amount": "60.00",
@@ -40,9 +39,8 @@ class ProductJsonExporter:
                 "conversion_factor": 1000,
             },
             {
-                "id": 2,
                 "name": "Молоко",
-                "category_id": 2,
+                "category_id": category_id,
                 "recipe_unit": "ml",
                 "purchase_unit": "l",
                 "price_amount": "80.00",

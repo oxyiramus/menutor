@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from backend.infrastructure.database.models import Base
 from backend.infrastructure.database.personal_categories import (
+    check_sqlite_foreign_keys,
+    lock_postgres_schema,
     migrate_personal_categories,
 )
 
@@ -49,12 +51,14 @@ def _migrate_menu_slots(conn) -> None:  # type: ignore[no-untyped-def]
     columns = {row[1] for row in info}
     if "product_id" in columns:
         return
-    conn.execute(text("""
+    conn.execute(
+        text("""
         CREATE TABLE IF NOT EXISTS _menu_slots_backup (
             menu_id INTEGER, day INTEGER, meal_type TEXT,
             recipe_id INTEGER, servings_override REAL
         )
-    """))
+    """)
+    )
     conn.execute(
         text(
             "INSERT INTO _menu_slots_backup "
@@ -146,6 +150,13 @@ def apply_schema(engine: Engine) -> None:
     if _is_sqlite(engine):
         had_menu_slots = _run_sqlite_migrations(engine)
 
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as conn:
+            lock_postgres_schema(conn)
+            Base.metadata.create_all(conn)
+            migrate_personal_categories(conn)
+        return
+
     Base.metadata.create_all(engine)
     with engine.connect() as conn:
         inspector = inspect(conn)
@@ -158,11 +169,7 @@ def apply_schema(engine: Engine) -> None:
                 conn.exec_driver_sql("BEGIN IMMEDIATE")
             try:
                 migrate_personal_categories(conn)
-                if (
-                    _is_sqlite(engine)
-                    and conn.exec_driver_sql("PRAGMA foreign_key_check").first()
-                ):
-                    raise RuntimeError("Category migration left invalid foreign keys")
+                check_sqlite_foreign_keys(conn)
                 conn.commit()
             finally:
                 conn.rollback()

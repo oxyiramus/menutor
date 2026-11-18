@@ -118,3 +118,72 @@ def test_migrate_personal_category_catalog(migration_database, upgrade):
             )
         if engine.dialect.name == "sqlite":
             assert conn.execute(text("PRAGMA foreign_key_check")).all() == []
+
+
+def test_sqlite_alembic_rolls_back_when_foreign_key_check_fails(tmp_path, monkeypatch):
+    url = f"sqlite:///{tmp_path / 'invalid.sqlite'}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    config = Config("alembic.ini")
+    previous = "a1b2c3d4e5e7"
+    command.upgrade(config, previous)
+    engine = create_engine(url)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO family_member_preferences (family_member_id, preference_id) VALUES (99,99)"
+                )
+            )
+        with pytest.raises(RuntimeError, match="foreign keys"):
+            command.upgrade(config, "head")
+        with engine.connect() as conn:
+            assert (
+                conn.execute(
+                    text("SELECT version_num FROM alembic_version")
+                ).scalar_one()
+                == previous
+            )
+            assert "user_id" not in {
+                column["name"]
+                for column in inspect(conn).get_columns("product_categories")
+            }
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("migration_database", ["postgresql"], indirect=True)
+def test_postgres_concurrent_startup_migrates_catalog_once(migration_database):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier, BrokenBarrierError
+
+    from sqlalchemy import event
+
+    engine, config = migration_database
+    command.upgrade(config, "a1b2c3d4e5e7")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO users (email,hashed_password,created_at) VALUES ('concurrent@test.example','hash','2026-01-01')"
+            )
+        )
+        conn.execute(text("INSERT INTO product_categories (name) VALUES ('Legacy')"))
+
+    first_ddl = Barrier(2, timeout=2)
+
+    # Let two unprotected startups reflect the old schema before either changes it.
+    @event.listens_for(engine, "before_cursor_execute")
+    def overlap_ddl(conn, cursor, statement, parameters, context, executemany):
+        if statement.startswith("ALTER TABLE product_categories DROP CONSTRAINT"):
+            try:
+                first_ddl.wait()
+            except BrokenBarrierError:
+                pass
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = [pool.submit(apply_schema, engine) for _ in range(2)]
+        for result in results:
+            result.result(timeout=15)
+    with engine.connect() as conn:
+        assert conn.execute(
+            text("SELECT user_id,name FROM product_categories")
+        ).all() == [(1, "Legacy")]

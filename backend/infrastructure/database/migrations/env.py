@@ -18,6 +18,10 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
 from backend.infrastructure.database.models import Base
+from backend.infrastructure.database.personal_categories import (
+    check_sqlite_foreign_keys,
+    lock_postgres_schema,
+)
 
 config = context.config
 
@@ -64,6 +68,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.begin() as connection:
+        lock_postgres_schema(connection)
         if connection.dialect.name == "sqlite":
             # SQLite batch migrations rebuild tables referenced by foreign keys.
             connection.exec_driver_sql("PRAGMA foreign_keys = OFF")
@@ -76,6 +81,7 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+        check_sqlite_foreign_keys(connection)
 
 
 if context.is_offline_mode():

@@ -44,7 +44,7 @@ def export_example(
     user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     data, content_type, filename = container.export_entities.example(
-        entity_type, format
+        entity_type, format, user.id
     )
     return Response(
         content=data,

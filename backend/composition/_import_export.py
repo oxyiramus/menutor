@@ -66,6 +66,8 @@ def _wire_import_export(
             infra.product_repo,
             infra.recipe_repo,
             infra.menu_repo,
+            infra.product_category_repo,
+            infra.recipe_category_repo,
         ),
         "import_entities": ImportEntities(import_registry, infra.session),
         "export_shopping_list": ExportShoppingList(

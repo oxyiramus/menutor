@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from tests.integration.api_isolation_helpers import request_ok
+from tests.integration.api_isolation_helpers import request_ok, user_data_snapshot
 
 
 @pytest.mark.parametrize("kind", ["product", "recipe"])
@@ -27,7 +27,24 @@ def test_personal_category_catalog(isolation_users, kind):
     assert client.put(f"/api/{foreign_path}", headers=a, json=body).status_code == 404
     assert client.get(f"/api/{foreign_path}/used", headers=a).status_code == 404
     assert client.post(f"/api/{foreign_path}/activate", headers=a).status_code == 404
+    for user in (alice, bob):
+        preference_id = user["objects"]["preferences"]["id"]
+        request_ok(
+            client,
+            "PUT",
+            f"preferences/{preference_id}",
+            user["headers"],
+            dict(
+                user["bodies"]["preferences"],
+                type="CATEGORY_BASED",
+                category_ids=[user["bodies"]["products"]["category_id"]],
+                recipe_category_ids=[user["bodies"]["recipes"]["category_id"]],
+            ),
+        )
+    owners = (alice["id"], bob["id"])
+    before = [user_data_snapshot(owner) for owner in owners]
     assert client.delete(f"/api/{foreign_path}?hard=true", headers=a).status_code == 404
+    assert [user_data_snapshot(owner) for owner in owners] == before
     for src, dst in ((own_path, foreign), (foreign_path, source)):
         assert (
             client.post(
@@ -37,6 +54,7 @@ def test_personal_category_catalog(isolation_users, kind):
             ).status_code
             == 422
         )
+        assert [user_data_snapshot(owner) for owner in owners] == before
     assert request_ok(client, "GET", path, b) == original
 
 
@@ -168,3 +186,58 @@ def test_registration_seed_after_restart(tmp_path, monkeypatch):
         finally:
             app.state.container._session.close()
             app.state.container._engine.dispose()
+
+
+@pytest.mark.parametrize("kind", ["products", "recipes"])
+@pytest.mark.parametrize("format", ["csv", "json"])
+def test_second_user_can_import_downloaded_example(isolation_users, kind, format):
+    client, (alice, bob) = isolation_users
+    before_alice = user_data_snapshot(alice["id"])
+    before_bob = user_data_snapshot(bob["id"])
+    path = f"/api/{kind}"
+    response = client.get(f"{path}/export/{format}/example", headers=bob["headers"])
+    assert response.status_code == 200, response.text
+    imported = client.post(
+        f"{path}/import/{format}",
+        headers=bob["headers"],
+        files={"file": (f"example.{format}", response.content)},
+    )
+    assert imported.status_code == 200, imported.text
+    assert imported.json() == {
+        "created": 2 if kind == "products" else 1,
+        "updated": 0,
+        "errors": [],
+    }
+    after_bob = user_data_snapshot(bob["id"])
+    assert all(row in after_bob[kind] for row in before_bob[kind])
+    assert user_data_snapshot(alice["id"]) == before_alice
+
+
+@pytest.mark.parametrize("kind", ["products", "recipes"])
+@pytest.mark.parametrize("use_name", [True, False])
+def test_import_accepts_literal_category_name_and_integral_json_number(
+    isolation_users, kind, use_name
+):
+    from tests.integration.test_derived_data_isolation import import_rows
+
+    client, (_, bob) = isolation_users
+    name = "  Import review  "
+    category = request_ok(
+        client, "POST", f"{kind[:-1]}-categories", bob["headers"], {"name": name}, 201
+    )
+    row = dict(bob["bodies"][kind], name="Imported item")
+    if use_name:
+        del row["category_id"]
+        row["category_name"] = name
+    else:
+        row["category_id"] = float(category["id"]) + 0.5
+        assert import_rows(client, bob, kind, "json", [row]).status_code == 422
+        row["category_id"] = float(category["id"])
+    response = import_rows(client, bob, kind, "json", [row])
+    assert response.status_code == 200, response.text
+    [item] = [
+        item
+        for item in request_ok(client, "GET", kind, bob["headers"])["items"]
+        if item["name"] == row["name"]
+    ]
+    assert item["category_id"] == category["id"]

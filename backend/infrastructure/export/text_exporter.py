@@ -50,7 +50,7 @@ class ShoppingListTextExporter:
         shopping_list: ShoppingList = entities[0]
         return self.export(shopping_list).encode("utf-8")
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         return (
             "Список покупок\n\nМолочные:\n• Молоко — 1 л — 80.00 руб\n\nИтого: 80.00 руб"
         ).encode()

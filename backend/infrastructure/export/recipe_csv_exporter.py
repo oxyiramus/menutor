@@ -63,31 +63,22 @@ class RecipeCsvExporter:
             )
         return buf.getvalue().encode("utf-8")
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         buf = io.StringIO()
         writer = csv.writer(buf)
         writer.writerow(self._HEADERS)
         writer.writerow(
             [
-                1,
+                None,
                 "Блины",
-                1,
+                category_id,
                 4,
                 600,
                 None,
                 None,
                 None,
                 None,
-                json.dumps(
-                    [
-                        {
-                            "product_id": 1,
-                            "quantity_amount": 200,
-                            "quantity_unit": "g",
-                            "order": 0,
-                        }
-                    ]
-                ),
+                "[]",
                 json.dumps([{"order": 1, "description": "Смешать ингредиенты"}]),
             ]
         )

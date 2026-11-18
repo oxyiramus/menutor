@@ -43,12 +43,16 @@ class ProductCsvExporter:
             )
         return buf.getvalue().encode("utf-8")
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         buf = io.StringIO()
         writer = csv.writer(buf)
         writer.writerow(self._HEADERS)
-        writer.writerow([1, "Мука", 1, "g", "kg", "60.00", "RUB", "", "", 1000])
-        writer.writerow([2, "Молоко", 2, "ml", "l", "80.00", "RUB", "", "", 1000])
+        writer.writerow(
+            [None, "Мука", category_id, "g", "kg", "60.00", "RUB", "", "", 1000]
+        )
+        writer.writerow(
+            [None, "Молоко", category_id, "ml", "l", "80.00", "RUB", "", "", 1000]
+        )
         return buf.getvalue().encode("utf-8")
 
     def content_type(self) -> str:

@@ -71,34 +71,23 @@ class RecipeJsonExporter:
         data = [self._to_dict(r) for r in entities]
         return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         if self._compact:
             examples: list[dict[str, Any]] = [
                 {
-                    "id": 1,
                     "name": "Блины",
                     "servings": 4,
-                    "ingredients": [
-                        {"product_id": 1, "quantity_amount": 200, "quantity_unit": "g"}
-                    ],
+                    "ingredients": [],
                 }
             ]
         else:
             examples = [
                 {
-                    "id": 1,
                     "name": "Блины",
-                    "category_id": 1,
+                    "category_id": category_id,
                     "servings": 4,
                     "weight": 600,
-                    "ingredients": [
-                        {
-                            "product_id": 1,
-                            "quantity_amount": 200,
-                            "quantity_unit": "g",
-                            "order": 0,
-                        }
-                    ],
+                    "ingredients": [],
                     "steps": [{"order": 1, "description": "Смешать ингредиенты"}],
                 }
             ]

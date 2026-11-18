@@ -10,15 +10,16 @@ def resolve_category_id(
     user_id: UserId,
     location: str,
 ) -> int:
-    if (
-        (raw_id is None or raw_id == "")
-        and isinstance(raw_name, str)
-        and raw_name.strip()
-    ):
-        category_id = repo.find_id_by_name(raw_name.strip(), user_id) if repo else None
+    if (raw_id is None or raw_id == "") and isinstance(raw_name, str) and raw_name:
+        category_id = repo.find_id_by_name(raw_name, user_id) if repo else None
+        trimmed_name = raw_name.strip()
+        if category_id is None and repo and trimmed_name and trimmed_name != raw_name:
+            category_id = repo.find_id_by_name(trimmed_name, user_id)
         if category_id is None:
             raise ImportValidationError(f"{location}: категория не найдена")
         return category_id
+    if isinstance(raw_id, float) and raw_id.is_integer():
+        return int(raw_id)
     try:
         return int(str(raw_id))
     except (ValueError, TypeError) as exc:
