@@ -58,11 +58,7 @@ pip install -e ".[dev]"
 uvicorn backend.api.main:app --reload
 ```
 
-Если `.config/.env` отсутствует, приложение использует SQLite и `data/menutor.db`. Для PostgreSQL скопируйте `.config/.env.example` в `.config/.env` и укажите параметры своей базы данных и `JWT_SECRET_KEY`. Применение миграций:
-
-```bash
-alembic upgrade head
-```
+Если `.config/.env` отсутствует, приложение использует SQLite и `data/menutor.db`. Для PostgreSQL скопируйте `.config/.env.example` в `.config/.env` и укажите параметры своей базы данных и `JWT_SECRET_KEY`. При каждом запуске backend выполняет `alembic upgrade head`, затем инициализирует справочники и начинает обслуживать запросы. При ошибке миграции backend завершает запуск с ошибкой. Если в базе уже есть таблицы, но нет ревизии Alembic, проверьте схему и историю миграций перед повторным запуском.
 
 Документация API после запуска доступна по адресу <http://localhost:8000/docs>.
 
@@ -97,7 +93,7 @@ npm run build
 
 ## Развёртывание
 
-В репозитории есть Docker Compose конфигурации для разработки и production. GitHub Actions workflow выполняет обновление контейнеров на self-hosted runner при push в `main`: [deploy.yml](.github/workflows/deploy.yml). Отдельный CI workflow для автоматического запуска тестов при pull request пока не настроен.
+В репозитории есть Docker Compose конфигурации для разработки и production. В обеих конфигурациях миграции выполняются при запуске backend, как и при локальном запуске. GitHub Actions workflow выполняет обновление контейнеров на self-hosted runner при push в `main`: [deploy.yml](.github/workflows/deploy.yml). Отдельный CI workflow для автоматического запуска тестов при pull request пока не настроен.
 
 ## Документация
 

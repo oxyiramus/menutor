@@ -1,12 +1,29 @@
+import asyncio
 import os
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 
+from backend.api.main import app
 from backend.infrastructure.database.connection import apply_schema, get_engine
+
+
+def run_lifespan(messages):
+    async def receive():
+        return next(events)
+
+    async def send(message):
+        messages.append(message)
+
+    events = iter([{"type": "lifespan.startup"}, {"type": "lifespan.shutdown"}])
+    asyncio.run(app({"type": "lifespan"}, receive, send))
 
 
 @pytest.fixture(params=["sqlite", "postgresql"])
@@ -35,12 +52,44 @@ def migration_database(request, tmp_path, monkeypatch):
             admin.dispose()
 
 
-@pytest.mark.parametrize("upgrade", ["alembic", "startup"])
-def test_empty_database(migration_database, upgrade):
+def test_empty_database(migration_database, monkeypatch):
     engine, config = migration_database
-    if upgrade == "alembic":
-        command.upgrade(config, "head")
-    apply_schema(engine)
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-secret")
+    head = ScriptDirectory.from_config(config).get_current_head()
+
+    for _ in range(2):
+        messages = []
+        run_lifespan(messages)
+        assert [message["type"] for message in messages] == [
+            "lifespan.startup.complete",
+            "lifespan.shutdown.complete",
+        ]
+        with engine.connect() as conn:
+            assert (
+                conn.execute(
+                    text("SELECT version_num FROM alembic_version")
+                ).scalar_one()
+                == head
+            )
+            units = (
+                conn.execute(text("SELECT name FROM units ORDER BY name"))
+                .scalars()
+                .all()
+            )
+            assert units == [
+                "box",
+                "g",
+                "kg",
+                "l",
+                "ml",
+                "pack",
+                "pcs",
+                "serv",
+                "tbsp",
+                "tsp",
+            ]
+    command.upgrade(config, "head")
+
     for table in ("product_categories", "recipe_categories"):
         columns = {c["name"]: c for c in inspect(engine).get_columns(table)}
         assert columns["user_id"]["nullable"] is False
@@ -48,10 +97,27 @@ def test_empty_database(migration_database, upgrade):
             assert conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one() == 0
 
 
+def test_startup_rejects_unversioned_database(migration_database, monkeypatch):
+    engine, _ = migration_database
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-secret")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE legacy_data (value INTEGER)"))
+        conn.execute(text("INSERT INTO legacy_data VALUES (42)"))
+
+    messages = []
+    with pytest.raises(RuntimeError, match="отсутствует ревизия Alembic"):
+        run_lifespan(messages)
+    assert [message["type"] for message in messages] == ["lifespan.startup.failed"]
+
+    assert inspect(engine).get_table_names() == ["legacy_data"]
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT value FROM legacy_data")).scalar_one() == 42
+
+
 @pytest.mark.parametrize("upgrade", ["alembic", "startup"])
-def test_migrate_personal_category_catalog(migration_database, upgrade):
+def test_migrate_personal_category_catalog(migration_database, upgrade, monkeypatch):
     engine, config = migration_database
-    command.upgrade(config, "a1b2c3d4e5e7")
+    command.upgrade(config, "c2d3e4f5a6b7")
     with engine.begin() as conn:
         for owner in (1, 2, 3):
             conn.execute(
@@ -71,6 +137,8 @@ def test_migrate_personal_category_catalog(migration_database, upgrade):
             for stmt in (
                 "INSERT INTO products (id,user_id,name,category_id,recipe_unit,purchase_unit) VALUES (:id,:id,'Product',50,'g','g')",
                 "INSERT INTO recipes (id,user_id,name,category_id) VALUES (:id,:id,'Recipe',50)",
+                "INSERT INTO menus (id,user_id,name) VALUES (:id,:id,'Menu')",
+                "INSERT INTO menu_slots (menu_id,day,meal_type,recipe_id) VALUES (:id,0,'Brunch',:id)",
                 "INSERT INTO preferences (id,user_id,name,type,mode) VALUES (:id,:id,'Preference','CATEGORY_BASED','BLOCKED')",
                 "INSERT INTO preference_categories (preference_id,category_id) VALUES (:id,51)",
                 "INSERT INTO preference_recipe_categories (preference_id,recipe_category_id) VALUES (:id,50)",
@@ -78,11 +146,17 @@ def test_migrate_personal_category_catalog(migration_database, upgrade):
             ):
                 conn.execute(text(stmt), {"id": owner})
 
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-secret")
     if upgrade == "alembic":
         command.upgrade(config, "head")
-    apply_schema(engine)
+    else:
+        run_lifespan([])
+        with engine.connect() as conn:
+            assert conn.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one() == (ScriptDirectory.from_config(config).get_current_head())
+    run_lifespan([])
     command.upgrade(config, "head")
-    apply_schema(engine)
     with engine.connect() as conn:
         for kind in ("product", "recipe"):
             assert conn.execute(
@@ -112,6 +186,12 @@ def test_migrate_personal_category_catalog(migration_database, upgrade):
                 "SELECT recipe_id,product_id FROM recipe_ingredients ORDER BY recipe_id"
             )
         ).all() == [(1, 1), (2, 2)]
+        assert conn.execute(
+            text(
+                "SELECT ms.menu_id,ms.recipe_id,mt.user_id,mt.name,mt.is_system "
+                "FROM menu_slots ms JOIN meal_types mt ON mt.id=ms.meal_type_id ORDER BY ms.menu_id"
+            )
+        ).all() == [(1, 1, 1, "Brunch", False), (2, 2, 2, "Brunch", False)]
         for table in ("product_categories", "recipe_categories"):
             conn.execute(
                 text(f"INSERT INTO {table} (user_id,name) VALUES (3,'After upgrade')")
@@ -120,7 +200,10 @@ def test_migrate_personal_category_catalog(migration_database, upgrade):
             assert conn.execute(text("PRAGMA foreign_key_check")).all() == []
 
 
-def test_sqlite_alembic_rolls_back_when_foreign_key_check_fails(tmp_path, monkeypatch):
+@pytest.mark.parametrize("upgrade", ["alembic", "startup"])
+def test_sqlite_alembic_rolls_back_when_foreign_key_check_fails(
+    tmp_path, monkeypatch, upgrade
+):
     url = f"sqlite:///{tmp_path / 'invalid.sqlite'}"
     monkeypatch.setenv("DATABASE_URL", url)
     config = Config("alembic.ini")
@@ -134,8 +217,16 @@ def test_sqlite_alembic_rolls_back_when_foreign_key_check_fails(tmp_path, monkey
                     "INSERT INTO family_member_preferences (family_member_id, preference_id) VALUES (99,99)"
                 )
             )
+        messages = []
         with pytest.raises(RuntimeError, match="foreign keys"):
-            command.upgrade(config, "head")
+            if upgrade == "alembic":
+                command.upgrade(config, "head")
+            else:
+                run_lifespan(messages)
+        if upgrade == "startup":
+            assert [message["type"] for message in messages] == [
+                "lifespan.startup.failed"
+            ]
         with engine.connect() as conn:
             assert (
                 conn.execute(
@@ -151,39 +242,63 @@ def test_sqlite_alembic_rolls_back_when_foreign_key_check_fails(tmp_path, monkey
         engine.dispose()
 
 
-@pytest.mark.parametrize("migration_database", ["postgresql"], indirect=True)
-def test_postgres_concurrent_startup_migrates_catalog_once(migration_database):
-    from concurrent.futures import ThreadPoolExecutor
-    from threading import Barrier, BrokenBarrierError
-
-    from sqlalchemy import event
-
-    engine, config = migration_database
-    command.upgrade(config, "a1b2c3d4e5e7")
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                "INSERT INTO users (email,hashed_password,created_at) VALUES ('concurrent@test.example','hash','2026-01-01')"
+def test_startup_schema_uses_supplied_in_memory_engine(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "invalid://must-not-be-used")
+    engine = get_engine("sqlite:///:memory:")
+    try:
+        apply_schema(engine)
+        with engine.connect() as conn:
+            assert conn.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one() == (
+                ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
             )
-        )
-        conn.execute(text("INSERT INTO product_categories (name) VALUES ('Legacy')"))
+            assert conn.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
+    finally:
+        engine.dispose()
 
-    first_ddl = Barrier(2, timeout=2)
 
-    # Let two unprotected startups reflect the old schema before either changes it.
-    @event.listens_for(engine, "before_cursor_execute")
-    def overlap_ddl(conn, cursor, statement, parameters, context, executemany):
-        if statement.startswith("ALTER TABLE product_categories DROP CONSTRAINT"):
-            try:
-                first_ddl.wait()
-            except BrokenBarrierError:
-                pass
+@pytest.mark.parametrize("migration_database", ["postgresql"], indirect=True)
+@pytest.mark.parametrize("previous_revision", [None, "a1b2c3d4e5e7"])
+def test_postgres_concurrent_startup(
+    migration_database, previous_revision, monkeypatch
+):
+    engine, config = migration_database
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-secret")
+    if previous_revision:
+        command.upgrade(config, previous_revision)
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO users (email,hashed_password,created_at) VALUES ('concurrent@test.example','hash','2026-01-01')"
+                )
+            )
+            conn.execute(
+                text("INSERT INTO product_categories (name) VALUES ('Legacy')")
+            )
 
+    # Separate processes exercise the database lock shared by distinct workers.
+    startup = [
+        sys.executable,
+        "-c",
+        "from tests.integration.test_personal_category_migration import run_lifespan; run_lifespan([])",
+    ]
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = [pool.submit(apply_schema, engine) for _ in range(2)]
+        results = [
+            pool.submit(
+                subprocess.run, startup, capture_output=True, text=True, timeout=30
+            )
+            for _ in range(2)
+        ]
         for result in results:
-            result.result(timeout=15)
+            process = result.result()
+            assert process.returncode == 0, process.stderr
+
     with engine.connect() as conn:
         assert conn.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one() == (ScriptDirectory.from_config(config).get_current_head())
+        assert conn.execute(
             text("SELECT user_id,name FROM product_categories")
-        ).all() == [(1, "Legacy")]
+        ).all() == ([(1, "Legacy")] if previous_revision else [])
+        assert conn.execute(text("SELECT COUNT(*) FROM units")).scalar_one() == 10
