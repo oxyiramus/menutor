@@ -1,5 +1,5 @@
 import axios, { CanceledError } from 'axios'
-import { accountSessionSignal, endAccountSession } from './accountSession'
+import { accountSessionSignal, endAccountSession, readAccountToken, syncAccountSession } from './accountSession'
 import type {
   ActiveCategory,
   Category,
@@ -41,24 +41,26 @@ const api = axios.create({ baseURL: '/api' })
 /* --- Auth interceptors --- */
 
 api.interceptors.request.use((config) => {
-  config.signal ??= accountSessionSignal()
-  const token = localStorage.getItem('access_token')
+  const signal = config.signal ?? accountSessionSignal()
+  const token = readAccountToken('access_token')
+  if (!syncAccountSession() || signal.aborted) throw new CanceledError()
+  config.signal = signal
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
-}, undefined, { synchronous: true })
+}, (error) => { throw error }, { synchronous: true })
 
 let pendingRefresh: { signal: AbortSignal; promise: Promise<void> } | undefined
 
 async function refreshAccess(signal: AbortSignal) {
-  const refreshToken = localStorage.getItem('refresh_token')
+  const refreshToken = readAccountToken('refresh_token')
   if (!refreshToken) throw new Error('Missing refresh token')
 
   const { data } = await axios.post('/api/auth/refresh', {
     refresh_token: refreshToken,
   }, { signal })
-  if (signal.aborted) throw new CanceledError()
+  if (!syncAccountSession() || signal.aborted) throw new CanceledError()
 
   localStorage.setItem('access_token', data.access_token)
   localStorage.setItem('refresh_token', data.refresh_token)
@@ -66,13 +68,13 @@ async function refreshAccess(signal: AbortSignal) {
 
 api.interceptors.response.use(
   (response) => {
-    if (response.config.signal?.aborted) throw new CanceledError()
+    if (!syncAccountSession() || response.config.signal?.aborted) throw new CanceledError()
     return response
   },
   async (error) => {
     const request = error.config
     const signal: AbortSignal | undefined = request?.signal
-    if (signal?.aborted) throw new CanceledError()
+    if (!syncAccountSession() || signal?.aborted) throw new CanceledError()
     if (error.response?.status !== 401 || !signal || request._retry) throw error
 
     request._retry = true
@@ -83,7 +85,7 @@ api.interceptors.response.use(
     try {
       await refresh.promise
     } catch {
-      if (!signal.aborted) {
+      if (syncAccountSession() && !signal.aborted) {
         endAccountSession()
       }
       throw new CanceledError()
@@ -91,7 +93,7 @@ api.interceptors.response.use(
       if (pendingRefresh === refresh) pendingRefresh = undefined
     }
 
-    if (signal.aborted) throw new CanceledError()
+    if (!syncAccountSession() || signal.aborted) throw new CanceledError()
     return api(request)
   },
 )

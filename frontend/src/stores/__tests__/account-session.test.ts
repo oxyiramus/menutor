@@ -155,6 +155,39 @@ function expectEmpty(s: Stores) {
 }
 
 describe('account session isolation', () => {
+  it.each(['storage event', 'request', 'response'])(
+    'isolates the old tab when another account replaces its session (%s)',
+    async (firstNotice) => {
+      const adapter = setupTransport()
+      const s = stores()
+      await login(s, 'A')
+      await load(s)
+      adapter.delay(true)
+      const pending = s.products.load()
+      await adapter.started.waiting
+
+      localStorage.setItem('menutor_account_session', 'other-tab')
+      localStorage.setItem('access_token', 'B')
+      localStorage.setItem('refresh_token', 'refresh-B')
+      transport.send.mockClear()
+
+      if (firstNotice === 'storage event') {
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'menutor_account_session', storageArea: localStorage,
+        }))
+        expectEmpty(s)
+      }
+      if (firstNotice === 'request') await s.products.load()
+      adapter.finish.release()
+      await pending
+      expectEmpty(s)
+      await s.products.load()
+      expect(transport.send).not.toHaveBeenCalled()
+      expect(s.products.items).toEqual([])
+      expect(localStorage.getItem('access_token')).toBe('B')
+    },
+  )
+
   it('clears stores, selections, drafts and buffers when switching from A to B', async () => {
     setupTransport()
     const s = stores()

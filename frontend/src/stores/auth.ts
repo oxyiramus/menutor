@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { accountSessionSignal, endAccountSession } from '@/api/accountSession'
+import { accountSessionSignal, endAccountSession, readAccountToken, saveAccountLogin, syncAccountSession } from '@/api/accountSession'
 import * as authApi from '@/api/auth'
 import type { LoginRequest, RegisterRequest, UserResponse } from '@/api/types'
 import { clearContextMenu } from '@/composables/useContextMenu'
@@ -20,8 +20,8 @@ const REFRESH_TOKEN_KEY = 'refresh_token'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserResponse | null>(null)
-  const accessToken = ref(localStorage.getItem(ACCESS_TOKEN_KEY) || '')
-  const refreshToken = ref(localStorage.getItem(REFRESH_TOKEN_KEY) || '')
+  const accessToken = ref(readAccountToken(ACCESS_TOKEN_KEY) || '')
+  const refreshToken = ref(readAccountToken(REFRESH_TOKEN_KEY) || '')
   const isAuthenticated = computed(() => !!accessToken.value)
 
   const accountStores = [
@@ -48,6 +48,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function register(data: RegisterRequest) {
     const session = accountSessionSignal()
     const created = await authApi.register(data)
+    syncAccountSession()
     session.throwIfAborted()
     useToastStore().show('Регистрация успешна! Войдите в аккаунт.', 'success')
     return created
@@ -57,10 +58,12 @@ export const useAuthStore = defineStore('auth', () => {
     endAccountSession()
     const session = accountSessionSignal()
     const tokens = await authApi.login(data)
+    syncAccountSession()
     session.throwIfAborted()
-    saveTokens(tokens.access_token, tokens.refresh_token)
+    saveAccountLogin(() => saveTokens(tokens.access_token, tokens.refresh_token))
     try {
       await fetchUser()
+      syncAccountSession()
       session.throwIfAborted()
     } catch (error) {
       if (!session.aborted) endAccountSession()
@@ -69,6 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function refresh(): Promise<boolean> {
+    if (!syncAccountSession()) return false
     const session = accountSessionSignal()
     if (!refreshToken.value) {
       endAccountSession()
@@ -78,7 +82,7 @@ export const useAuthStore = defineStore('auth', () => {
       const tokens = await authApi.refreshTokens({
         refresh_token: refreshToken.value,
       })
-      if (session.aborted) return false
+      if (!syncAccountSession() || session.aborted) return false
       saveTokens(tokens.access_token, tokens.refresh_token)
       return true
     } catch {
@@ -88,11 +92,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function fetchUser() {
-    if (!accessToken.value) return
+    if (!syncAccountSession() || !accessToken.value) return
     const session = accountSessionSignal()
     try {
       const profile = await authApi.getMe(accessToken.value)
-      if (!session.aborted) user.value = profile
+      if (syncAccountSession() && !session.aborted) user.value = profile
     } catch (error) {
       if (!session.aborted) user.value = null
       throw error
@@ -100,7 +104,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    const token = localStorage.getItem(REFRESH_TOKEN_KEY)
+    const token = readAccountToken(REFRESH_TOKEN_KEY)
+    if (!syncAccountSession()) return
     endAccountSession()
     if (token) {
       try {
@@ -112,7 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function init() {
-    if (!accessToken.value) return
+    if (!syncAccountSession() || !accessToken.value) return
     const session = accountSessionSignal()
     try {
       await fetchUser()
