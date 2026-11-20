@@ -10,3 +10,4 @@ __pycache__
 data
 .env
 *cache
+/docs/review/

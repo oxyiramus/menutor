@@ -127,7 +127,7 @@ def update_me(
     container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> UserResponse:
     updated = container.update_profile.execute(
-        user, UpdateProfileData(nickname=body.nickname, password=body.password)
+        user, UpdateProfileData(nickname=body.nickname)
     )
     return UserResponse(
         id=int(updated.id),

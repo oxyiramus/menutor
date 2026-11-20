@@ -3,6 +3,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from backend.domain.entities.user import User
+from backend.domain.exceptions import RepositoryError
 from backend.domain.ports.user_repository import UserRepository
 from backend.domain.value_objects.types import UserId
 from backend.infrastructure.database.models import (
@@ -77,6 +78,15 @@ class OrmUserRepository(
             created_at=row.created_at,
             last_login_at=row.last_login_at,
         )
+
+    def update_nickname(self, user_id: UserId, nickname: str) -> User:
+        row = self._session.get(UserRow, int(user_id))
+        if row is None:
+            raise RepositoryError(f"Entity {user_id} not found in users")
+        row.nickname = nickname
+        self._session.commit()
+        self._session.refresh(row)
+        return self._row_to_entity(row)
 
     def get_by_email(self, email: str) -> User | None:
         row = self._session.query(UserRow).filter(UserRow.email == email).first()

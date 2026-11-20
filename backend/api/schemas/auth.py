@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class RegisterRequest(BaseModel):
@@ -33,8 +34,17 @@ class UserResponse(BaseModel):
 
 
 class UpdateProfileRequest(BaseModel):
+    # Preserve the handling of unrelated fields while forbidding password explicitly.
+    model_config = ConfigDict(json_schema_extra={"not": {"required": ["password"]}})
+
     nickname: str | None = None
-    password: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_password(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "password" in data:
+            raise ValueError("Для смены пароля используйте POST /api/auth/me/password")
+        return data
 
 
 class ChangePasswordRequest(BaseModel):

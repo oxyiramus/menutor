@@ -13,3 +13,6 @@ class UserRepository(ABC):
 
     @abstractmethod
     def save(self, user: User) -> User: ...
+
+    @abstractmethod
+    def update_nickname(self, user_id: UserId, nickname: str) -> User: ...

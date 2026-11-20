@@ -324,8 +324,7 @@ export interface UserResponse {
 }
 
 export interface UpdateProfileRequest {
-  nickname?: string
-  password?: string
+  nickname?: string | null
 }
 
 export interface ImportResult {

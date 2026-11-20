@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.api.main import app
+from backend.application.use_cases.auth import UpdateProfileData
 
 
 @pytest.fixture
@@ -207,3 +208,88 @@ def test_http_recipe_rejects_foreign_subrecipe(http_client, preview):
         },
     )
     assert response.status_code in (404, 422), response.text
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"password": "Replacement123!"},
+        {"password": None},
+        {"nickname": "Changed", "password": "Replacement123!"},
+    ],
+)
+def test_profile_rejects_password_without_changes(http_client, body):
+    client = http_client
+    email = "alice@example.com"
+    headers = register_login(client, email)
+
+    response = client.patch("/api/auth/me", headers=headers, json=body)
+
+    assert response.status_code == 422
+    assert client.get("/api/auth/me", headers=headers).json()["nickname"] == "alice"
+    for password, expected in (("Password123!", 200), ("Replacement123!", 401)):
+        login = client.post(
+            "/api/auth/login", json={"email": email, "password": password}
+        )
+        assert login.status_code == expected
+
+
+def test_password_change_requires_current_password(http_client):
+    client = http_client
+    email = "alice@example.com"
+    headers = register_login(client, email)
+    new_password = "Replacement123!"
+
+    for current_password, status, old_login, new_login in (
+        ("wrong", 400, 200, 401),
+        ("Password123!", 204, 401, 200),
+    ):
+        response = client.post(
+            "/api/auth/me/password",
+            headers=headers,
+            json={"current_password": current_password, "new_password": new_password},
+        )
+        assert response.status_code == status
+        for password, expected in (
+            ("Password123!", old_login),
+            (new_password, new_login),
+        ):
+            login = client.post(
+                "/api/auth/login", json={"email": email, "password": password}
+            )
+            assert login.status_code == expected
+
+
+def test_openapi_profile_patch_accepts_nickname_without_password(http_client):
+    spec = http_client.get("/openapi.json").json()
+    patch = spec["paths"]["/api/auth/me"]["patch"]
+    ref = patch["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    schema = spec["components"]["schemas"][ref.split("/")[-1]]
+    assert set(schema["properties"]) == {"nickname"}
+    assert schema["not"] == {"required": ["password"]}
+    assert "422" in patch["responses"]
+
+
+def test_nickname_update_preserves_password_changed_after_profile_read(http_client):
+    client = http_client
+    email = "alice@example.com"
+    headers = register_login(client, email)
+    container = app.state.container
+    token = headers["Authorization"].removeprefix("Bearer ")
+    stale_user = container.get_current_user.execute(token)
+
+    response = client.post(
+        "/api/auth/me/password",
+        headers=headers,
+        json={"current_password": "Password123!", "new_password": "Replacement123!"},
+    )
+    assert response.status_code == 204
+
+    updated = container.update_profile.execute(
+        stale_user, UpdateProfileData(nickname="Changed")
+    )
+    assert updated.nickname == "Changed"
+    login = client.post(
+        "/api/auth/login", json={"email": email, "password": "Replacement123!"}
+    )
+    assert login.status_code == 200

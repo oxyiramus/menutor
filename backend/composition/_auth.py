@@ -34,5 +34,5 @@ def _wire_auth(infra: _Infrastructure) -> dict[str, Any]:
         "get_current_user": GetCurrentUser(infra.token_service, infra.user_repo),
         "logout_user": LogoutUser(infra.token_service, infra.refresh_token_repo),
         "change_password": ChangePassword(infra.user_repo, infra.password_hasher),
-        "update_profile": UpdateProfile(infra.user_repo, infra.password_hasher),
+        "update_profile": UpdateProfile(infra.user_repo),
     }
