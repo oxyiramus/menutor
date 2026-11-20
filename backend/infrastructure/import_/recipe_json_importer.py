@@ -1,20 +1,17 @@
-import json
-
 from backend.domain.entities.recipe import Recipe
 from backend.domain.exceptions import ImportValidationError
 from backend.domain.ports.category_repository import CategoryRepository
 from backend.domain.ports.recipe_repository import RecipeRepository
 from backend.domain.value_objects.cooking_step import CookingStep
 from backend.domain.value_objects.import_result import ImportResult
-from backend.domain.value_objects.quantity import Quantity
-from backend.domain.value_objects.recipe_ingredient import RecipeIngredient
 from backend.domain.value_objects.types import (
-    ProductId,
     RecipeCategoryId,
     RecipeId,
     UserId,
 )
 from backend.infrastructure.import_.category import resolve_category_id
+from backend.infrastructure.import_.parsing import json_rows, parse_int
+from backend.infrastructure.import_.recipe_ingredients import parse_ingredients
 
 _REQUIRED = {"name", "servings"}
 
@@ -30,17 +27,9 @@ class RecipeJsonImporter:
         if not data.strip():
             return ImportResult(created=0, updated=0)
 
-        try:
-            rows = json.loads(data.decode("utf-8"))
-        except json.JSONDecodeError as e:
-            raise ImportValidationError(f"Некорректный JSON: {e}") from e
-
-        if not isinstance(rows, list):
-            raise ImportValidationError("JSON должен быть массивом объектов")
-
         created = updated = 0
         errors: list[str] = []
-        for i, row in enumerate(rows, start=1):
+        for i, row in enumerate(json_rows(data), start=1):
             if not isinstance(row, dict):
                 raise ImportValidationError(f"Элемент {i}: ожидается объект")
 
@@ -56,48 +45,15 @@ class RecipeJsonImporter:
 
             try:
                 servings = int(row["servings"])
-            except ValueError, TypeError:
+            except ValueError, TypeError, OverflowError:
                 raise ImportValidationError(
                     f"Элемент {i}: некорректное значение 'servings'"
                 )
 
-            try:
-                raw_ingredients = row.get("ingredients") or []
-                ingredients: list[RecipeIngredient] = []
-                for ing_data in raw_ingredients:
-                    if ing_data.get("product_id") is not None:
-                        ingredients.append(
-                            RecipeIngredient(
-                                product_id=ProductId(int(ing_data["product_id"])),
-                                quantity=Quantity(
-                                    float(ing_data["quantity_amount"]),
-                                    ing_data["quantity_unit"],
-                                ),
-                                order=int(ing_data.get("order", 0)),
-                            )
-                        )
-                    elif "sub_recipe_id" in ing_data:
-                        sub_id = RecipeId(int(ing_data["sub_recipe_id"]))
-                        sub = self._repo.get_by_id(sub_id)
-                        if sub is not None and sub.user_id == user_id:
-                            ingredients.append(
-                                RecipeIngredient(
-                                    sub_recipe_id=sub_id,
-                                    quantity=Quantity(
-                                        float(ing_data["quantity_amount"]),
-                                        ing_data["quantity_unit"],
-                                    ),
-                                    order=int(ing_data.get("order", 0)),
-                                )
-                            )
-                        else:
-                            errors.append(
-                                f"Рецепт-ингредиент с ID {sub_id} не найден, пропущен"
-                            )
-            except Exception as e:
-                raise ImportValidationError(
-                    f"Элемент {i}: некорректный ингредиент: {e}"
-                ) from e
+            raw_ingredients = row.get("ingredients") or []
+            ingredients = parse_ingredients(
+                raw_ingredients, self._repo, user_id, errors, f"Элемент {i}"
+            )
 
             try:
                 raw_steps = row.get("steps") or []
@@ -107,10 +63,14 @@ class RecipeJsonImporter:
                     )
                     for s in raw_steps
                 ]
-            except Exception as e:
-                raise ImportValidationError(
-                    f"Элемент {i}: некорректный шаг: {e}"
-                ) from e
+            except (
+                ValueError,
+                TypeError,
+                KeyError,
+                OverflowError,
+                RecursionError,
+            ) as exc:
+                raise ImportValidationError(f"Элемент {i}: некорректный шаг") from exc
 
             category_id = resolve_category_id(
                 row.get("category_id"),
@@ -120,7 +80,7 @@ class RecipeJsonImporter:
                 f"Элемент {i}",
             )
 
-            raw_id = int(row.get("id") or 0)
+            raw_id = parse_int(row.get("id") or 0, "id", f"Элемент {i}")
             existing = self._repo.get_by_id(RecipeId(raw_id)) if raw_id > 0 else None
             if existing is not None and existing.user_id == user_id:
                 entity_id = existing.id
@@ -138,15 +98,17 @@ class RecipeJsonImporter:
                 ingredients=ingredients,
                 steps=steps,
                 category_id=RecipeCategoryId(category_id),
-                weight=int(row.get("weight") or 0),
+                weight=parse_int(row.get("weight") or 0, "weight", f"Элемент {i}"),
                 user_id=user_id,
                 total_pieces=(
-                    int(row["total_pieces"])
+                    parse_int(row["total_pieces"], "total_pieces", f"Элемент {i}")
                     if row.get("total_pieces") is not None
                     else None
                 ),
                 pieces_per_portion=(
-                    int(row["pieces_per_portion"])
+                    parse_int(
+                        row["pieces_per_portion"], "pieces_per_portion", f"Элемент {i}"
+                    )
                     if row.get("pieces_per_portion") is not None
                     else None
                 ),

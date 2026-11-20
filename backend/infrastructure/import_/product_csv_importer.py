@@ -1,5 +1,3 @@
-import csv
-import io
 from decimal import Decimal, InvalidOperation
 
 from backend.domain.entities.product import Product
@@ -10,6 +8,7 @@ from backend.domain.value_objects.import_result import ImportResult
 from backend.domain.value_objects.money import Money
 from backend.domain.value_objects.types import ProductCategoryId, ProductId, UserId
 from backend.infrastructure.import_.category import resolve_category_id
+from backend.infrastructure.import_.parsing import csv_rows, parse_int, validate_unit
 
 _REQUIRED = {"name", "category_id", "recipe_unit", "purchase_unit", "price_amount"}
 
@@ -25,13 +24,8 @@ class ProductCsvImporter:
         if not data.strip():
             return ImportResult(created=0, updated=0)
 
-        try:
-            reader = csv.DictReader(io.StringIO(data.decode("utf-8")))
-        except Exception as e:
-            raise ImportValidationError(f"Не удалось прочитать CSV: {e}") from e
-
         created = updated = 0
-        for i, row in enumerate(reader, start=2):
+        for i, row in enumerate(csv_rows(data), start=2):
             missing = _REQUIRED - set(row.keys())
             if row.get("category_name"):
                 missing.discard("category_id")
@@ -66,7 +60,7 @@ class ProductCsvImporter:
                     f"Строка {i}: некорректное значение 'conversion_factor'"
                 )
 
-            raw_id = int(row.get("id") or 0)
+            raw_id = parse_int(row.get("id") or 0, "id", f"Строка {i}")
             existing = self._repo.get_by_id(ProductId(raw_id)) if raw_id > 0 else None
             if existing is not None and existing.user_id == user_id:
                 entity_id = existing.id
@@ -78,8 +72,12 @@ class ProductCsvImporter:
             product = Product(
                 id=entity_id,
                 name=row["name"].strip(),
-                recipe_unit=row["recipe_unit"].strip(),
-                purchase_unit=row["purchase_unit"].strip(),
+                recipe_unit=validate_unit(
+                    row["recipe_unit"].strip(), "recipe_unit", f"Строка {i}"
+                ),
+                purchase_unit=validate_unit(
+                    row["purchase_unit"].strip(), "purchase_unit", f"Строка {i}"
+                ),
                 price_per_purchase_unit=Money(
                     price_amount,
                     (row.get("price_currency") or "RUB").strip(),
