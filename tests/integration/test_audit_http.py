@@ -2,8 +2,10 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from backend.api.main import app
+from backend.infrastructure.auth.bcrypt_password_hasher import BcryptPasswordHasher
 
 
 @pytest.fixture
@@ -14,6 +16,76 @@ def http_client(tmp_path, monkeypatch):
         yield client
         app.state.container._session.close()
         app.state.container._engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        "",
+        "not-an-email",
+        "@example.com",
+        "alice@",
+        "alice smith@example.com",
+        "alice@example .com",
+        " alice@example.com",
+        "alice@example.com\n",
+        "alice@@example.com",
+        "alice..smith@example.com",
+        "alice@-example.com",
+    ],
+)
+def test_registration_rejects_invalid_email_without_creating_records(
+    http_client, email
+):
+    response = http_client.post(
+        "/api/auth/register", json={"email": email, "password": "Password123!"}
+    )
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"][0]["loc"] == ["body", "email"]
+    with app.state.container._engine.connect() as connection:
+        for table in (
+            "users",
+            "family_members",
+            "meal_types",
+            "product_categories",
+            "recipe_categories",
+        ):
+            assert (
+                connection.execute(text(f"SELECT count(*) FROM {table}")).scalar() == 0
+            )
+
+
+def test_registration_preserves_email_case_and_duplicate_response(http_client):
+    for email in ("Alice.Smith+menu@Example.COM", "alice.smith+menu@example.com"):
+        body = {"email": email, "password": "Password123!"}
+        created = http_client.post("/api/auth/register", json=body)
+        assert created.status_code == 201, created.text
+        assert created.json()["email"] == email
+        duplicate = http_client.post("/api/auth/register", json=body)
+        assert duplicate.status_code == 409, duplicate.text
+        assert (
+            duplicate.json()["detail"] == f"Пользователь с email {email} уже существует"
+        )
+
+
+def test_login_accepts_preexisting_legacy_email(http_client):
+    email = "not-an-email"
+    password = "Password123!"
+    with app.state.container._engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (email, nickname, hashed_password, created_at) "
+                "VALUES (:email, 'legacy', :hashed_password, CURRENT_TIMESTAMP)"
+            ),
+            {"email": email, "hashed_password": BcryptPasswordHasher().hash(password)},
+        )
+    pair = http_client.post(
+        "/api/auth/login", json={"email": email, "password": password}
+    )
+    assert pair.status_code == 200, pair.text
+    assert pair.json()["token_type"] == "bearer"
+    headers = {"Authorization": f"Bearer {pair.json()['access_token']}"}
+    assert http_client.get("/api/auth/me", headers=headers).json()["email"] == email
 
 
 def register_login(client, email):

@@ -1,12 +1,27 @@
+import re
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+# A dot-separated local part and domain labels without leading or trailing hyphens.
+_EMAIL_ATOM = r"[\w!#$%&'*+/=?^`{|}~-]+"
+_DOMAIN_LABEL = r"[^\W_](?:(?:[^\W_]|-)*[^\W_])?"
+_EMAIL_PATTERN = re.compile(
+    rf"{_EMAIL_ATOM}(?:\.{_EMAIL_ATOM})*@{_DOMAIN_LABEL}(?:\.{_DOMAIN_LABEL})*"
+)
 
 
 class RegisterRequest(BaseModel):
     email: str
     password: str
     nickname: str = ""
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, email: str) -> str:
+        if not _EMAIL_PATTERN.fullmatch(email):
+            raise ValueError("Введите корректный email")
+        return email
 
 
 class LoginRequest(BaseModel):

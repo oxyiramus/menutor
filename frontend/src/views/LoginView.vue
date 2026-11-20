@@ -17,8 +17,19 @@ const loading = ref(false)
 const showPassword = ref(false)
 
 function errorMessage(err: unknown): string {
-  if (err instanceof AxiosError && err.response?.data?.detail) {
-    return String(err.response.data.detail)
+  if (err instanceof AxiosError) {
+    const detail: unknown = err.response?.data?.detail
+    if (typeof detail === 'string' && detail) {
+      return detail
+    }
+    if (
+      isRegister.value &&
+      err.response?.status === 422 &&
+      Array.isArray(detail) &&
+      detail.some((issue) => issue?.loc?.[0] === 'body' && issue.loc[1] === 'email')
+    ) {
+      return 'Введите корректный email'
+    }
   }
   return 'Произошла ошибка'
 }
