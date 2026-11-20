@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import dotenv_values
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,19 +14,15 @@ from backend.api.routers import (
     auth,
     categories,
     family,
-)
-from backend.api.routers import import_export as import_export_router
-from backend.api.routers import meal_types as meal_types_router
-from backend.api.routers import (
     menus,
     preferences,
     products,
     recipes,
-)
-from backend.api.routers import shopping_list as shopping_list_router
-from backend.api.routers import (
     system,
 )
+from backend.api.routers import import_export as import_export_router
+from backend.api.routers import meal_types as meal_types_router
+from backend.api.routers import shopping_list as shopping_list_router
 from backend.composition_root import ApplicationContainer
 from backend.domain.exceptions import (
     AppError,
@@ -48,6 +45,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
+def _cors_allowed_origins() -> list[str]:
+    key = "CORS_ALLOWED_ORIGINS"
+    configured = os.environ.get(key)
+    if configured is None:
+        env_file = Path(__file__).resolve().parents[2] / ".config" / ".env"
+        configured = dotenv_values(env_file).get(key)
+    origins = [
+        origin for value in (configured or "").split(",") if (origin := value.strip())
+    ]
+    if any("*" in origin or origin == "null" for origin in origins):
+        raise ValueError(
+            f"{key} must contain explicit origins without wildcards or null"
+        )
+    return origins
+
+
 app = FastAPI(
     title="Menutor API",
     description="API планировщика меню",
@@ -59,8 +72,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_allowed_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
