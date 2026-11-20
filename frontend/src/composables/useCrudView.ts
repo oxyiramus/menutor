@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import type { Ref } from 'vue'
+import { accountSessionSignal } from '@/api/accountSession'
 import { useSelection } from './useSelection'
 import { useToastStore } from '@/stores/toast'
 
@@ -16,6 +17,7 @@ interface CrudStore<T extends { id: number }, C> {
 
 export function useCrudView<T extends { id: number }, C>(store: CrudStore<T, C>) {
   const toast = useToastStore()
+  const session = accountSessionSignal()
   const selection = useSelection()
 
   const selectedId = ref<number | null>(null) as Ref<number | null>
@@ -51,7 +53,7 @@ export function useCrudView<T extends { id: number }, C>(store: CrudStore<T, C>)
       }
       formOpen.value = false
     } catch (e: any) {
-      toast.show(e?.response?.data?.detail ?? 'Ошибка сохранения', 'error')
+      if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка сохранения', 'error')
     }
   }
 
@@ -68,7 +70,7 @@ export function useCrudView<T extends { id: number }, C>(store: CrudStore<T, C>)
       selectedId.value = null
       formOpen.value = false
     } catch (e: any) {
-      toast.show(e?.response?.data?.detail ?? 'Ошибка удаления', 'error')
+      if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка удаления', 'error')
     }
   }
 
@@ -89,7 +91,7 @@ export function useCrudView<T extends { id: number }, C>(store: CrudStore<T, C>)
       await store.removeMany(ids)
       selection.clear()
     } catch (e: any) {
-      toast.show(e?.response?.data?.detail ?? 'Ошибка удаления', 'error')
+      if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка удаления', 'error')
     }
   }
 
@@ -104,7 +106,7 @@ export function useCrudView<T extends { id: number }, C>(store: CrudStore<T, C>)
       }
       selection.exit()
     } catch (e: any) {
-      toast.show(e?.response?.data?.detail ?? 'Ошибка удаления', 'error')
+      if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка удаления', 'error')
     }
   }
 

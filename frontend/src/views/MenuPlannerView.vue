@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { accountSessionSignal } from '@/api/accountSession'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { MenuSlot } from '@/api/types'
@@ -80,6 +81,8 @@ const editPortions = ref('')
 const editPieces = ref('')
 const editCalculatedPieces = ref(0)
 
+const session = accountSessionSignal()
+
 onMounted(async () => {
   const previousId = menuStore.selectedId
   await Promise.all([
@@ -92,7 +95,7 @@ onMounted(async () => {
     categoryStore.load('recipe'),
     mealTypeStore.load(),
   ])
-  if (previousId !== null) {
+  if (!session.aborted && previousId !== null) {
     await menuStore.select(previousId)
   }
 })
@@ -207,6 +210,7 @@ async function onDeleteMenu() {
 
 async function onOpenPicker(day: number, mealTypeId: number) {
   await menuStore.ensureMenuSelected()
+  if (session.aborted) return
   pickerDay.value = day
   pickerMealTypeId.value = mealTypeId
   pickerOpen.value = true
@@ -225,6 +229,7 @@ function onPickerRemove(data: { type: 'recipe' | 'product'; id: number }) {
 
 async function onAddItem(day: number, mealTypeId: number, data: { type: 'recipe' | 'product'; id: number }) {
   await menuStore.ensureMenuSelected()
+  if (session.aborted) return
 
   const isSubset = data.type === 'recipe' &&
     activeMemberIds.value.size > 0 &&
@@ -248,7 +253,7 @@ async function onAddItem(day: number, mealTypeId: number, data: { type: 'recipe'
   }
   await menuStore.addSlotToMenu(slot)
 
-  if (data.type === 'recipe' && isSubset) {
+  if (!session.aborted && data.type === 'recipe' && isSubset) {
     const recipeName = recipeNames.value[data.id] ?? `#${data.id}`
     const memberNames = familyStore.items
       .filter(m => activeMemberIds.value.has(m.id))
@@ -323,7 +328,7 @@ async function onMoveItem(slot: MenuSlot, toDay: number, toMealTypeId: number, t
   try {
     await menuStore.moveSlot(slot, toDay, toMealTypeId, toIndex)
   } catch (e: any) {
-    toast.show(e?.response?.data?.detail ?? 'Ошибка перемещения', 'error')
+    if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка перемещения', 'error')
   }
 }
 
@@ -332,7 +337,7 @@ async function onReorderItems(day: number, mealTypeId: number, orderedSlots: Men
   try {
     await menuStore.reorderSlots(day, mealTypeId, orderedSlots)
   } catch (e: any) {
-    toast.show(e?.response?.data?.detail ?? 'Ошибка сортировки', 'error')
+    if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка сортировки', 'error')
   }
 }
 
@@ -380,7 +385,7 @@ async function onExportMenu() {
     } else if (data?.detail) {
       message = data.detail
     }
-    toast.show(message, 'error')
+    if (!session.aborted) toast.show(message, 'error')
   } finally {
     exportLoading.value = false
   }
@@ -389,7 +394,7 @@ async function onExportMenu() {
 async function onGenerateShoppingList() {
   if (!menuStore.current) { toast.show('Сначала выберите меню', 'error'); return }
   await shoppingStore.generate(menuStore.current.id)
-  router.push({ path: '/shopping-list', query: { from: 'planner' } })
+  if (!session.aborted) router.push({ path: '/shopping-list', query: { from: 'planner' } })
 }
 </script>
 

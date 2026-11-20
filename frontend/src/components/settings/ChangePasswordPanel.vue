@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { accountSessionSignal } from '@/api/accountSession'
 import { ref } from 'vue'
 import { changePassword } from '@/api/client'
 import { useToastStore } from '@/stores/toast'
 
 const toast = useToastStore()
+const session = accountSessionSignal()
 
 const currentPassword = ref('')
 const newPassword = ref('')
@@ -22,12 +24,13 @@ async function onSubmit() {
   loading.value = true
   try {
     await changePassword(currentPassword.value, newPassword.value)
+    if (session.aborted) return
     toast.show('Пароль успешно изменён', 'success')
     currentPassword.value = ''
     newPassword.value = ''
     confirmPassword.value = ''
   } catch (e: any) {
-    toast.show(e?.response?.data?.detail ?? 'Ошибка смены пароля', 'error')
+    if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка смены пароля', 'error')
   } finally {
     loading.value = false
   }

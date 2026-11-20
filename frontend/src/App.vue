@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import MobileBottomNav from '@/components/layout/MobileBottomNav.vue'
 import ToastNotification from '@/components/ui/ToastNotification.vue'
@@ -8,6 +8,11 @@ import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const auth = useAuthStore()
+const router = useRouter()
+
+watch(() => auth.isAuthenticated, (authenticated) => {
+  if (!authenticated && !route.meta.public) void router.replace('/login')
+})
 
 onMounted(() => auth.init())
 </script>
@@ -17,7 +22,7 @@ onMounted(() => auth.init())
     <RouterView />
     <ToastNotification />
   </div>
-  <div v-else class="flex h-[100dvh] bg-gray-50">
+  <div v-else-if="auth.isAuthenticated" class="flex h-[100dvh] bg-gray-50">
     <AppSidebar />
     <main class="flex-1 overflow-y-auto pb-20 lg:pb-0 overscroll-contain">
       <div class="h-full">

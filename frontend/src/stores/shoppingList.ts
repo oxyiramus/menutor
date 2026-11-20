@@ -1,3 +1,4 @@
+import { accountSessionSignal } from '@/api/accountSession'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import {
@@ -119,30 +120,33 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
   // ----- Actions -----
 
   async function loadLists(): Promise<void> {
+    const session = accountSessionSignal()
     listsLoading.value = true
     try {
       savedLists.value = await fetchSavedShoppingLists()
     } catch {
-      useToastStore().show('Ошибка загрузки списков покупок', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки списков покупок', 'error')
     } finally {
-      listsLoading.value = false
+      if (!session.aborted) listsLoading.value = false
     }
   }
 
   async function loadList(id: number): Promise<void> {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       data.value = await fetchSavedShoppingList(id)
       currentListId.value = id
       takeSnapshot()
     } catch {
-      useToastStore().show('Ошибка загрузки списка покупок', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки списка покупок', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function generate(menuId: number): Promise<void> {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       const list = await generateShoppingList(menuId)
@@ -152,13 +156,14 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
       // Prepend to sidebar list and reload full list to keep in sync
       prependMeta(list)
     } catch {
-      useToastStore().show('Ошибка генерации списка покупок', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка генерации списка покупок', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function saveChanges(): Promise<void> {
+    const session = accountSessionSignal()
     if (!data.value) return
     loading.value = true
     try {
@@ -186,13 +191,14 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
       updateMetaInList(updated)
       useToastStore().show('Список сохранён', 'success')
     } catch {
-      useToastStore().show('Ошибка сохранения списка', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка сохранения списка', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function createEmpty(): Promise<void> {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       const list = await createSavedShoppingList()
@@ -201,13 +207,14 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
       takeSnapshot()
       prependMeta(list)
     } catch {
-      useToastStore().show('Ошибка создания списка', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка создания списка', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function rename(id: number, name: string): Promise<void> {
+    const session = accountSessionSignal()
     try {
       const updated = await renameSavedShoppingList(id, { name })
       updateMetaInList(updated)
@@ -215,11 +222,12 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
         data.value = { ...data.value, name: updated.name, updated_at: updated.updated_at }
       }
     } catch {
-      useToastStore().show('Ошибка переименования списка', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка переименования списка', 'error')
     }
   }
 
   async function copy(id: number): Promise<void> {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       const list = await copySavedShoppingList(id)
@@ -228,13 +236,14 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
       takeSnapshot()
       prependMeta(list)
     } catch {
-      useToastStore().show('Ошибка копирования списка', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка копирования списка', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function remove(id: number): Promise<void> {
+    const session = accountSessionSignal()
     try {
       await deleteSavedShoppingList(id)
       savedLists.value = savedLists.value.filter((l) => l.id !== id)
@@ -244,11 +253,12 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
         snapshot.value = ''
       }
     } catch {
-      useToastStore().show('Ошибка удаления списка', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка удаления списка', 'error')
     }
   }
 
   async function togglePurchased(itemId: number): Promise<void> {
+    const session = accountSessionSignal()
     if (!currentListId.value) return
     try {
       const listId = currentListId.value
@@ -267,7 +277,7 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
       // Since buildComparableSnapshot excludes purchased, snapshot stays valid;
       // but if other changes were already pending we keep them dirty — no re-snapshot here.
     } catch {
-      useToastStore().show('Ошибка обновления статуса покупки', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка обновления статуса покупки', 'error')
     }
   }
 
@@ -323,7 +333,18 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
     sidebarOpen.value = open
   }
 
+  function reset() {
+    savedLists.value = []
+    currentListId.value = null
+    data.value = null
+    snapshot.value = ''
+    loading.value = false
+    listsLoading.value = false
+    sidebarOpen.value = true
+  }
+
   return {
+    reset,
     savedLists,
     sortedLists,
     currentListId,

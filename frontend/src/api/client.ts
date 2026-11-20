@@ -1,4 +1,5 @@
-import axios from 'axios'
+import axios, { CanceledError } from 'axios'
+import { accountSessionSignal, endAccountSession } from './accountSession'
 import type {
   ActiveCategory,
   Category,
@@ -40,76 +41,60 @@ const api = axios.create({ baseURL: '/api' })
 /* --- Auth interceptors --- */
 
 api.interceptors.request.use((config) => {
+  config.signal ??= accountSessionSignal()
   const token = localStorage.getItem('access_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
-})
+}, undefined, { synchronous: true })
 
-let isRefreshing = false
-let refreshSubscribers: { resolve: (token: string) => void; reject: (error: unknown) => void }[] = []
+let pendingRefresh: { signal: AbortSignal; promise: Promise<void> } | undefined
 
-function onTokenRefreshed(token: string) {
-  refreshSubscribers.forEach((subscriber) => subscriber.resolve(token))
-  refreshSubscribers = []
+async function refreshAccess(signal: AbortSignal) {
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) throw new Error('Missing refresh token')
+
+  const { data } = await axios.post('/api/auth/refresh', {
+    refresh_token: refreshToken,
+  }, { signal })
+  if (signal.aborted) throw new CanceledError()
+
+  localStorage.setItem('access_token', data.access_token)
+  localStorage.setItem('refresh_token', data.refresh_token)
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config.signal?.aborted) throw new CanceledError()
+    return response
+  },
   async (error) => {
-    const originalRequest = error.config
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      originalRequest._retry = true
+    const request = error.config
+    const signal: AbortSignal | undefined = request?.signal
+    if (signal?.aborted) throw new CanceledError()
+    if (error.response?.status !== 401 || !signal || request._retry) throw error
 
-      if (!isRefreshing) {
-        isRefreshing = true
-        const refreshToken = localStorage.getItem('refresh_token')
-        if (!refreshToken) {
-          isRefreshing = false
-          redirectToLogin()
-          return Promise.reject(error)
-        }
-        try {
-          const { data } = await axios.post('/api/auth/refresh', {
-            refresh_token: refreshToken,
-          })
-          localStorage.setItem('access_token', data.access_token)
-          localStorage.setItem('refresh_token', data.refresh_token)
-          isRefreshing = false
-          onTokenRefreshed(data.access_token)
-          originalRequest.headers.Authorization = `Bearer ${data.access_token}`
-          return api(originalRequest)
-        } catch {
-          isRefreshing = false
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
-          refreshSubscribers.forEach((subscriber) => subscriber.reject(error))
-          refreshSubscribers = []
-          redirectToLogin()
-          return Promise.reject(error)
-        }
-      }
-
-      return new Promise((resolve, reject) => {
-        refreshSubscribers.push({
-          resolve: (token: string) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`
-            resolve(api(originalRequest))
-          },
-          reject,
-        })
-      })
+    request._retry = true
+    if (pendingRefresh?.signal !== signal) {
+      pendingRefresh = { signal, promise: refreshAccess(signal) }
     }
-    return Promise.reject(error)
+    const refresh = pendingRefresh
+    try {
+      await refresh.promise
+    } catch {
+      if (!signal.aborted) {
+        endAccountSession()
+      }
+      throw new CanceledError()
+    } finally {
+      if (pendingRefresh === refresh) pendingRefresh = undefined
+    }
+
+    if (signal.aborted) throw new CanceledError()
+    return api(request)
   },
 )
-
-function redirectToLogin() {
-  if (window.location.pathname !== '/login') {
-    window.location.href = '/login'
-  }
-}
 
 /* Auth */
 export const changePassword = (current_password: string, new_password: string) =>

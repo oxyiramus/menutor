@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { accountSessionSignal } from '@/api/accountSession'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { RecipeCreate } from '@/api/types'
 import RecipeForm from '@/components/recipes/RecipeForm.vue'
 import RecipeTable from '@/components/recipes/RecipeTable.vue'
@@ -16,6 +17,7 @@ import { fetchRecipeDependents } from '@/api/client'
 import { useToastStore } from '@/stores/toast'
 
 const store = useRecipeStore()
+const session = accountSessionSignal()
 const productStore = useProductStore()
 const toast = useToastStore()
 
@@ -77,7 +79,7 @@ async function onConfirmDelete() {
     recipeStack.value = []
     formOpen.value = false
   } catch (e: any) {
-    toast.show(e?.response?.data?.detail ?? 'Ошибка удаления', 'error')
+    if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка удаления', 'error')
   }
 }
 
@@ -104,6 +106,7 @@ const search = ref('')
 const categoryId = ref<number | null>(null)
 
 let searchTimer: ReturnType<typeof setTimeout>
+onUnmounted(() => clearTimeout(searchTimer))
 function onSearchInput(value: string) {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {

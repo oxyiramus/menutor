@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import type { ProductCreate } from '@/api/types'
 import ProductForm from '@/components/products/ProductForm.vue'
 import ProductTable from '@/components/products/ProductTable.vue'
@@ -39,6 +39,7 @@ const search = ref('')
 const categoryId = ref<number | null>(null)
 
 let searchTimer: ReturnType<typeof setTimeout>
+onUnmounted(() => clearTimeout(searchTimer))
 function onSearchInput(value: string) {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {

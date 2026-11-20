@@ -4,6 +4,10 @@ import type { MenuSlot } from '@/api/types'
 // Module-level singleton — one clipboard shared across all grid cells
 const clipboardItems = ref<MenuSlot[] | null>(null)
 
+export function clearPlannerClipboard() {
+  clipboardItems.value = null
+}
+
 export function usePlannerClipboard() {
   const hasClipboard = computed(
     () => clipboardItems.value !== null && clipboardItems.value.length > 0,

@@ -1,3 +1,4 @@
+import { accountSessionSignal } from '@/api/accountSession'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Ref } from 'vue'
@@ -30,6 +31,7 @@ export function createCrudStore<T extends { id: number }, C>(
     const loading = ref(false)
 
     async function load() {
+      const session = accountSessionSignal()
       loading.value = true
       try {
         if (options.fetchCategories) {
@@ -41,9 +43,9 @@ export function createCrudStore<T extends { id: number }, C>(
           items.value = await options.fetchAll()
         }
       } catch {
-        useToastStore().show(options.messages.loadError, 'error')
+        if (!session.aborted) useToastStore().show(options.messages.loadError, 'error')
       } finally {
-        loading.value = false
+        if (!session.aborted) loading.value = false
       }
     }
 
@@ -83,6 +85,12 @@ export function createCrudStore<T extends { id: number }, C>(
       )
     }
 
-    return { items, categories, loading, load, create, update, remove, removeMany }
+    function reset() {
+      items.value = []
+      categories.value = []
+      loading.value = false
+    }
+
+    return { reset, items, categories, loading, load, create, update, remove, removeMany }
   })
 }

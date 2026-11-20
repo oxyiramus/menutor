@@ -1,3 +1,4 @@
+import { accountSessionSignal } from '@/api/accountSession'
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { ActiveCategory, Product, ProductCreate } from '@/api/types'
@@ -52,6 +53,7 @@ export const useProductStore = defineStore('products', () => {
   }
 
   async function load() {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       const [, cats] = await Promise.all([
@@ -60,25 +62,27 @@ export const useProductStore = defineStore('products', () => {
       ])
       categories.value = cats
     } catch {
-      useToastStore().show('Ошибка загрузки продуктов', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки продуктов', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function setPage(p: number) {
+    const session = accountSessionSignal()
     page.value = p
     loading.value = true
     try {
       await _loadPage()
     } catch {
-      useToastStore().show('Ошибка загрузки продуктов', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки продуктов', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function setFilters(newSearch: string, newCategoryId: number | null) {
+    const session = accountSessionSignal()
     search.value = newSearch
     categoryId.value = newCategoryId
     page.value = 1
@@ -86,9 +90,9 @@ export const useProductStore = defineStore('products', () => {
     try {
       await _loadPage()
     } catch {
-      useToastStore().show('Ошибка загрузки продуктов', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки продуктов', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
@@ -148,7 +152,20 @@ export const useProductStore = defineStore('products', () => {
     useToastStore().show('Продукты удалены', 'success')
   }
 
+  function reset() {
+    items.value = []
+    allItems.value = []
+    categories.value = []
+    loading.value = false
+    page.value = 1
+    total.value = 0
+    pageSize.value = PAGE_SIZE
+    search.value = ''
+    categoryId.value = null
+  }
+
   return {
+    reset,
     items,
     allItems,
     categories,
