@@ -135,57 +135,49 @@ def test_registration_seed_after_restart(tmp_path, monkeypatch):
     alice_email = "alice@test.example"
     paths = ("product-categories", "recipe-categories")
     with TestClient(app) as client:
-        try:
-            alice, headers = register(client, alice_email)
-            for path in paths:
-                initial[path] = request_ok(client, "GET", path, headers)
-                removed, edited = initial[path][:2]
-                request_ok(
-                    client,
-                    "DELETE",
-                    f"{path}/{removed['id']}?hard=true",
-                    headers,
-                    status=204,
-                )
-                request_ok(
-                    client,
-                    "PUT",
-                    f"{path}/{edited['id']}",
-                    headers,
-                    {"name": "Личная", "color": "#ABCDEF"},
-                )
-                expected[path] = request_ok(client, "GET", path, headers)
-        finally:
-            app.state.container._session.close()
-            app.state.container._engine.dispose()
+        alice, headers = register(client, alice_email)
+        for path in paths:
+            initial[path] = request_ok(client, "GET", path, headers)
+            removed, edited = initial[path][:2]
+            request_ok(
+                client,
+                "DELETE",
+                f"{path}/{removed['id']}?hard=true",
+                headers,
+                status=204,
+            )
+            request_ok(
+                client,
+                "PUT",
+                f"{path}/{edited['id']}",
+                headers,
+                {"name": "Личная", "color": "#ABCDEF"},
+            )
+            expected[path] = request_ok(client, "GET", path, headers)
 
     with TestClient(app) as client:
-        try:
-            headers = login_headers(
-                client, {"email": alice_email, "password": "Password123!"}
+        headers = login_headers(
+            client, {"email": alice_email, "password": "Password123!"}
+        )
+        bob, bob_headers = register(client, "bob@test.example")
+        for path in paths:
+            assert request_ok(client, "GET", path, headers) == expected[path]
+            bob_categories = request_ok(client, "GET", path, bob_headers)
+            assert [c["name"] for c in bob_categories] == [
+                c["name"] for c in initial[path]
+            ]
+            assert {c["id"] for c in bob_categories}.isdisjoint(
+                c["id"] for c in expected[path]
             )
-            bob, bob_headers = register(client, "bob@test.example")
-            for path in paths:
-                assert request_ok(client, "GET", path, headers) == expected[path]
-                bob_categories = request_ok(client, "GET", path, bob_headers)
-                assert [c["name"] for c in bob_categories] == [
-                    c["name"] for c in initial[path]
-                ]
-                assert {c["id"] for c in bob_categories}.isdisjoint(
-                    c["id"] for c in expected[path]
-                )
-                table = path.replace("-", "_")
-                with app.state.container._engine.connect() as conn:
-                    from sqlalchemy import text
+            table = path.replace("-", "_")
+            with app.state.database.engine.connect() as conn:
+                from sqlalchemy import text
 
-                    catalog = dict(
-                        conn.execute(text(f"SELECT id,user_id FROM {table}")).all()
-                    )
-                    assert all(catalog[c["id"]] == alice["id"] for c in expected[path])
-                    assert all(catalog[c["id"]] == bob["id"] for c in bob_categories)
-        finally:
-            app.state.container._session.close()
-            app.state.container._engine.dispose()
+                catalog = dict(
+                    conn.execute(text(f"SELECT id,user_id FROM {table}")).all()
+                )
+                assert all(catalog[c["id"]] == alice["id"] for c in expected[path])
+                assert all(catalog[c["id"]] == bob["id"] for c in bob_categories)
 
 
 @pytest.mark.parametrize("kind", ["products", "recipes"])

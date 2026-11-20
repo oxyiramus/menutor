@@ -3,10 +3,9 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from backend.domain.services.password_hasher import PasswordHasher
 from backend.domain.services.portion_calculator import PortionCalculator
@@ -61,9 +60,8 @@ from backend.infrastructure.repositories.orm_user_repository import (
 
 @dataclass
 class _Infrastructure:
-    """Holds all infrastructure objects created during startup."""
+    """Infrastructure objects bound to one session."""
 
-    engine: Any
     session: Session
     user_repo: OrmUserRepository
     refresh_token_repo: OrmRefreshTokenRepository
@@ -100,29 +98,37 @@ def _get_jwt_secret(db_url: str) -> str:
     )
 
 
-def _create_infrastructure(db_url: str | None) -> _Infrastructure:
-    """Build all infrastructure-layer objects: DB, repos, services."""
-    if db_url is None:
-        _env_path = Path(__file__).resolve().parents[2] / ".config" / ".env"
-        load_dotenv(_env_path)
+class ApplicationDatabase:
+    """Application-scoped engine and session factory."""
+
+    def __init__(self) -> None:
+        env_path = Path(__file__).resolve().parents[2] / ".config" / ".env"
+        load_dotenv(env_path)
         db_url = os.environ.get("DATABASE_URL", "sqlite:///data/menutor.db")
 
-    engine = get_engine(db_url)
-    apply_schema(engine)
-    session = Session(engine)
-    seed_defaults(session)
+        self.jwt_secret = _get_jwt_secret(db_url)
+        self.engine = get_engine(db_url)
+        self.sessions = sessionmaker(self.engine)
+        try:
+            apply_schema(self.engine)
+            with self.sessions() as session:
+                seed_defaults(session)
+        except BaseException:
+            self.engine.dispose()
+            raise
 
+
+def _create_infrastructure(session: Session, jwt_secret: str) -> _Infrastructure:
     recipe_repo = OrmRecipeRepository(session)
     product_repo = OrmProductRepository(session)
     product_category_repo = OrmProductCategoryRepository(session)
 
     return _Infrastructure(
-        engine=engine,
         session=session,
         user_repo=OrmUserRepository(session),
         refresh_token_repo=OrmRefreshTokenRepository(session),
         password_hasher=BcryptPasswordHasher(),
-        token_service=JwtTokenService(_get_jwt_secret(db_url)),
+        token_service=JwtTokenService(jwt_secret),
         recipe_repo=recipe_repo,
         product_repo=product_repo,
         menu_repo=OrmMenuRepository(session),

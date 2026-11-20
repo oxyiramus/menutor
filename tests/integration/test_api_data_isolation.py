@@ -21,7 +21,7 @@ KINDS = (
 
 def database_snapshot():
     # A fresh session avoids accepting stale identity-map objects as evidence.
-    with Session(app.state.container._engine) as session:
+    with Session(app.state.database.engine) as session:
         return {
             table.name: sorted(
                 (tuple(row) for row in session.execute(select(table))), key=repr
@@ -213,7 +213,7 @@ def test_profile_and_password_only_change_current_user(isolation_users, directio
     client, users = isolation_users
     own, other = users[direction], users[1 - direction]
     user_table = Base.metadata.tables["users"]
-    with Session(app.state.container._engine) as session:
+    with Session(app.state.database.engine) as session:
         other_before = tuple(
             session.execute(
                 select(user_table).where(user_table.c.id == other["id"])
@@ -252,7 +252,7 @@ def test_profile_and_password_only_change_current_user(isolation_users, directio
             "email": user["email"],
             "nickname": nickname,
         }
-    with Session(app.state.container._engine) as session:
+    with Session(app.state.database.engine) as session:
         assert (
             tuple(
                 session.execute(

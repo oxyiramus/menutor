@@ -26,7 +26,7 @@ def user_data_snapshot(user_id):
     from backend.infrastructure.database.models import Base
 
     tables = Base.metadata.tables
-    with Session(app.state.container._engine) as session:
+    with Session(app.state.database.engine) as session:
         result = {}
         for name in TABLES.values():
             table = tables[name]
@@ -70,7 +70,7 @@ def persisted_owner(kind, entity_id):
     from backend.infrastructure.database.models import Base
 
     table = Base.metadata.tables[TABLES[kind]]
-    with Session(app.state.container._engine) as session:
+    with Session(app.state.database.engine) as session:
         return session.execute(
             select(table.c.user_id).where(table.c.id == entity_id)
         ).scalar_one()

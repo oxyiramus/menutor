@@ -573,7 +573,7 @@ def test_derived_recipe_reads_skip_legacy_foreign_ingredient(
     headers = alice["headers"]
     kind = "products" if foreign_link == "product_id" else "recipes"
     # Reproduce a persisted row from before ownership was enforced on writes.
-    with client.app.state.container._engine.begin() as connection:
+    with client.app.state.database.engine.begin() as connection:
         connection.execute(
             insert(RecipeIngredientRow).values(
                 recipe_id=own["recipes"]["id"],

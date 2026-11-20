@@ -26,7 +26,7 @@ from backend.api.routers import shopping_list as shopping_list_router
 from backend.api.routers import (
     system,
 )
-from backend.composition_root import ApplicationContainer
+from backend.composition import ApplicationDatabase
 from backend.domain.exceptions import (
     AppError,
     AuthenticationError,
@@ -44,8 +44,12 @@ from backend.domain.exceptions import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    app.state.container = ApplicationContainer()
-    yield
+    database = ApplicationDatabase()
+    app.state.database = database
+    try:
+        yield
+    finally:
+        database.engine.dispose()
 
 
 app = FastAPI(
@@ -64,20 +68,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.middleware("http")
-async def rollback_on_error(request: Request, call_next):  # type: ignore[no-untyped-def]
-    try:
-        response = await call_next(request)
-        return response
-    except Exception:
-        container = getattr(request.app.state, "container", None)
-        if container is not None:
-            session = getattr(container, "_session", None)
-            if session is not None:
-                session.rollback()
-        raise
 
 
 # ── Exception handlers ────────────────────────────────────────────
