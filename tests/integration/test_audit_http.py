@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from backend.api.main import app
 from backend.application.use_cases.auth import UpdateProfileData
+from backend.composition import ApplicationContainer
 from backend.infrastructure.auth.bcrypt_password_hasher import BcryptPasswordHasher
 
 
@@ -43,7 +44,7 @@ def test_registration_rejects_invalid_email_without_creating_records(
     )
     assert response.status_code == 422, response.text
     assert response.json()["detail"][0]["loc"] == ["body", "email"]
-    with app.state.container._engine.connect() as connection:
+    with app.state.database.engine.connect() as connection:
         for table in (
             "users",
             "family_members",
@@ -72,7 +73,7 @@ def test_registration_preserves_email_case_and_duplicate_response(http_client):
 def test_login_accepts_preexisting_legacy_email(http_client):
     email = "not-an-email"
     password = "Password123!"
-    with app.state.container._engine.begin() as connection:
+    with app.state.database.engine.begin() as connection:
         connection.execute(
             text(
                 "INSERT INTO users (email, nickname, hashed_password, created_at) "
@@ -346,9 +347,11 @@ def test_nickname_update_preserves_password_changed_after_profile_read(http_clie
     client = http_client
     email = "alice@example.com"
     headers = register_login(client, email)
-    container = app.state.container
+    database = app.state.database
     token = headers["Authorization"].removeprefix("Bearer ")
-    stale_user = container.get_current_user.execute(token)
+    with database.sessions() as session:
+        container = ApplicationContainer(session, database.jwt_secret)
+        stale_user = container.get_current_user.execute(token)
 
     response = client.post(
         "/api/auth/me/password",
@@ -357,9 +360,11 @@ def test_nickname_update_preserves_password_changed_after_profile_read(http_clie
     )
     assert response.status_code == 204
 
-    updated = container.update_profile.execute(
-        stale_user, UpdateProfileData(nickname="Changed")
-    )
+    with database.sessions() as session:
+        container = ApplicationContainer(session, database.jwt_secret)
+        updated = container.update_profile.execute(
+            stale_user, UpdateProfileData(nickname="Changed")
+        )
     assert updated.nickname == "Changed"
     login = client.post(
         "/api/auth/login", json={"email": email, "password": "Replacement123!"}
@@ -397,7 +402,7 @@ def test_password_policy_for_registration_and_change(
         json={"current_password": "Password123!", "new_password": password},
     )
     assert changed.status_code == (204 if accepted else 422)
-    with app.state.container._engine.connect() as connection:
+    with app.state.database.engine.connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM users")).scalar() == (
             2 if accepted else 1
         )
@@ -429,7 +434,7 @@ def test_password_policy_for_existing_credentials(http_client):
     client = http_client
     email = "legacy-short@example.com"
     short_password = "old"
-    with app.state.container._engine.begin() as connection:
+    with app.state.database.engine.begin() as connection:
         connection.execute(
             text(
                 "INSERT INTO users (email, nickname, hashed_password, created_at) "
