@@ -20,6 +20,7 @@ def compose_services():
         shutil.copyfile(ROOT / "docker-compose.yml", project / "docker-compose.yml")
         (project / ".config").mkdir()
         (project / ".config/.env").touch()
+        (project / ".config/proxy-trust.conf").touch()
         output = subprocess.check_output(
             ["docker", "compose", "config", "--format", "json"],
             cwd=project,
@@ -29,6 +30,12 @@ def compose_services():
 
 
 class ProxyTrustTest(unittest.IsolatedAsyncioTestCase):
+    def test_only_frontend_is_published_for_http(self):
+        services = compose_services()
+        self.assertEqual(services["frontend"]["ports"][0]["host_ip"], "127.0.0.1")
+        self.assertEqual(services["frontend"]["ports"][0]["published"], "8080")
+        self.assertFalse(services["backend"].get("ports"))
+
     async def test_forwarded_metadata_depends_on_the_connected_peer(self):
         services = compose_services()
         frontend_networks = services["frontend"]["networks"]
