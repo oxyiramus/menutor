@@ -76,13 +76,9 @@ def isolation_client(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'isolation.sqlite'}")
     monkeypatch.setenv("JWT_SECRET_KEY", "isolation-test-secret-key-at-least-32-bytes")
     with TestClient(app) as client:
-        try:
-            with app.state.container._engine.connect() as connection:
-                assert connection.execute(text("PRAGMA foreign_keys")).scalar() == 1
-            yield client
-        finally:
-            app.state.container._session.close()
-            app.state.container._engine.dispose()
+        with app.state.database.engine.connect() as connection:
+            assert connection.execute(text("PRAGMA foreign_keys")).scalar() == 1
+        yield client
 
 
 @pytest.fixture

@@ -377,7 +377,7 @@ def test_delete_preference_preserves_unrelated_legacy_assignments(isolation_user
         {"name": "Second member", "preference_ids": [preference_id]},
         201,
     )
-    with Session(app.state.container._engine) as session:
+    with Session(app.state.database.engine) as session:
         session.add(
             FamilyMemberPreferenceRow(
                 family_member_id=second["id"],

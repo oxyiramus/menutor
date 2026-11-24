@@ -15,8 +15,6 @@ def http_client(tmp_path, monkeypatch):
     monkeypatch.setenv("JWT_SECRET_KEY", "audit-http-test-secret-key-at-least-32-bytes")
     with TestClient(app) as client:
         yield client
-        app.state.container._session.close()
-        app.state.container._engine.dispose()
 
 
 @pytest.mark.parametrize(

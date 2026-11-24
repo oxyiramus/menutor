@@ -81,6 +81,12 @@ pytest tests/ -q
 
 Тесты PostgreSQL в `tests/integration/test_audit_postgresql.py` используют Testcontainers и требуют доступный Docker. Многие остальные тесты работают с SQLite.
 
+Для проверки границ сессии задайте `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой БД PostgreSQL. Роли подключения нужно право создавать схемы. Тест создаёт временную схему и два аккаунта, удерживает первый запрос в обработчике и выполняет второй до возобновления первого. Ожидаемый результат команды — `1 passed`.
+
+```sh
+pytest -q tests/integration/test_request_sessions.py -k postgresql
+```
+
 ```sh
 cd frontend
 npm ci
