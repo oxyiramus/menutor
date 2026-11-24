@@ -23,7 +23,9 @@ def _make_use_case(
     return ImportEntities(registry, session or MagicMock())
 
 
-def _mock_importer(result: ImportResult | None = None, raises: Exception | None = None) -> MagicMock:
+def _mock_importer(
+    result: ImportResult | None = None, raises: Exception | None = None
+) -> MagicMock:
     m = MagicMock()
     if raises:
         m.import_from_bytes.side_effect = raises
@@ -61,7 +63,7 @@ def test_execute_rollback_on_unexpected_error() -> None:
     session = MagicMock()
     importer = _mock_importer(raises=RuntimeError("db failure"))
     uc = _make_use_case(importer=importer, session=session)
-    with pytest.raises(ImportValidationError, match="Ошибка импорта"):
+    with pytest.raises(RuntimeError, match="db failure"):
         uc.execute("products", "csv", b"data", UID)
     session.rollback.assert_called_once()
 
@@ -69,7 +71,7 @@ def test_execute_rollback_on_unexpected_error() -> None:
 def test_execute_unknown_format_raises() -> None:
     session = MagicMock()
     uc = _make_use_case(session=session)
-    with pytest.raises(ImportValidationError, match="xml"):
+    with pytest.raises(ImportValidationError, match="формат файла не поддерживается"):
         uc.execute("products", "xml", b"data", UID)
     session.rollback.assert_not_called()
     session.commit.assert_not_called()

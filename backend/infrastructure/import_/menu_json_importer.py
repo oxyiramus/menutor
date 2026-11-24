@@ -1,5 +1,3 @@
-import json
-
 from backend.domain.entities.menu import MenuSlot, WeeklyMenu
 from backend.domain.exceptions import ImportValidationError, InvalidEntityError
 from backend.domain.ports.menu_repository import MenuRepository
@@ -12,6 +10,7 @@ from backend.domain.value_objects.types import (
     RecipeId,
     UserId,
 )
+from backend.infrastructure.import_.parsing import json_rows, parse_int
 
 
 class MenuJsonImporter:
@@ -22,16 +21,8 @@ class MenuJsonImporter:
         if not data.strip():
             return ImportResult(created=0, updated=0)
 
-        try:
-            rows = json.loads(data.decode("utf-8"))
-        except json.JSONDecodeError as e:
-            raise ImportValidationError(f"Некорректный JSON: {e}") from e
-
-        if not isinstance(rows, list):
-            raise ImportValidationError("JSON должен быть массивом объектов")
-
         created = updated = 0
-        for i, row in enumerate(rows, start=1):
+        for i, row in enumerate(json_rows(data), start=1):
             if not isinstance(row, dict):
                 raise ImportValidationError(f"Элемент {i}: ожидается объект")
             if not str(row.get("name", "")).strip():
@@ -67,16 +58,17 @@ class MenuJsonImporter:
                     )
                     for s in (row.get("slots") or [])
                 ]
-            except InvalidEntityError as e:
-                raise ImportValidationError(
-                    f"Элемент {i}: некорректный слот: {e}"
-                ) from e
-            except Exception as e:
-                raise ImportValidationError(
-                    f"Элемент {i}: ошибка разбора слотов: {e}"
-                ) from e
+            except (
+                InvalidEntityError,
+                AttributeError,
+                KeyError,
+                ValueError,
+                TypeError,
+                OverflowError,
+            ) as exc:
+                raise ImportValidationError(f"Элемент {i}: некорректный слот") from exc
 
-            raw_id = int(row.get("id") or 0)
+            raw_id = parse_int(row.get("id") or 0, "id", f"Элемент {i}")
             existing = self._repo.get_by_id(MenuId(raw_id)) if raw_id > 0 else None
             if existing is not None and existing.user_id == user_id:
                 entity_id = existing.id
