@@ -35,16 +35,19 @@ docker compose -f docker-compose.yml ps
 
 Нужны Python 3.14+ и Node.js 20.19.x либо 22.12+. Контейнерная сборка фронтенда использует Node.js 25.8.
 
+Для SQLite и PostgreSQL задайте собственный непустой `JWT_SECRET_KEY` в окружении или в `.config/.env`. Если ключ отсутствует, пуст или совпадает с одной из прежних заглушек, backend остановится до запуска API. В примере ниже команда `openssl` создаёт ключ для нового локального стенда. Для повторного запуска используйте сохранённый ключ стенда.
+
 ```sh
 python3.14 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 mkdir -p data
 export DATABASE_URL=sqlite:///data/menutor.db
+export JWT_SECRET_KEY="$(openssl rand -hex 32)"
 uvicorn backend.api.main:app --reload
 ```
 
-Для локального PostgreSQL задайте URL с адресом базы, доступным с хоста, и `JWT_SECRET_KEY`. Backend и Alembic читают `.config/.env` и используют SQLite по умолчанию, если `DATABASE_URL` отсутствует.
+Для локального PostgreSQL задайте URL с адресом базы, доступным с хоста. Backend и Alembic читают `.config/.env` и используют SQLite по умолчанию, если `DATABASE_URL` отсутствует.
 
 В другом терминале запустите интерфейс.
 
@@ -86,6 +89,8 @@ pytest tests/ -q
 ```
 
 Тесты PostgreSQL в `tests/integration/test_audit_postgresql.py` используют Testcontainers и требуют доступный Docker. Многие остальные тесты работают с SQLite.
+
+Для проверки запуска с JWT-ключом выполните `python -m pytest -q tests/integration/test_jwt_startup.py`. Ожидается `9 passed, 1 skipped`. Для полного прогона задайте `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой базы PostgreSQL и правом создавать схемы. Тест сам создаст и удалит временную схему. Ожидается `10 passed`.
 
 Для проверки границ сессии задайте `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой БД PostgreSQL. Роли подключения нужно право создавать схемы. Тест создаёт временную схему и два аккаунта, удерживает первый запрос в обработчике и выполняет второй до возобновления первого. Ожидаемый результат команды — `1 passed`.
 

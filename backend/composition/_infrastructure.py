@@ -82,11 +82,13 @@ class _Infrastructure:
     meal_type_repo: OrmMealTypeRepository
 
 
-_TEST_JWT_SECRET = "test-only-secret-do-not-use-in-production"
+_JWT_SECRET_PLACEHOLDERS = frozenset(
+    {"test-only-secret-do-not-use-in-production", "some_awesome_key"}
+)
 
 
-def _get_jwt_secret(db_url: str) -> str:
-    """Return JWT secret key, raising if not configured for non-SQLite databases."""
+def _get_jwt_secret() -> str:
+    """Require an explicit JWT secret before initializing the database."""
     secret = os.environ.get("JWT_SECRET_KEY")
     if secret:
         return secret
@@ -106,6 +108,7 @@ class ApplicationDatabase:
         load_dotenv(env_path)
         db_url = os.environ.get("DATABASE_URL", "sqlite:///data/menutor.db")
 
+    jwt_secret = _get_jwt_secret()
         self.jwt_secret = _get_jwt_secret(db_url)
         self.engine = get_engine(db_url)
         self.sessions = sessionmaker(self.engine)
