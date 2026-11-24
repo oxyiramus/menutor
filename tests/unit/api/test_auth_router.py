@@ -204,13 +204,13 @@ class TestUpdateMe:
         assert resp.json()["nickname"] == "new_nick"
         container.update_profile.execute.assert_called_once()
 
-    def test_update_password(
+    def test_rejects_password_in_profile_update(
         self, client: TestClient, container: MagicMock
     ) -> None:
         container.update_profile.execute.return_value = _user()
         resp = client.patch("/api/auth/me", json={"password": "newpass123"})
-        assert resp.status_code == 200
-        container.update_profile.execute.assert_called_once()
+        assert resp.status_code == 422
+        container.update_profile.execute.assert_not_called()
 
     def test_returns_401_without_auth(
         self, unauth_client: TestClient, container: MagicMock

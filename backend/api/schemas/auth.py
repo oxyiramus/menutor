@@ -1,7 +1,8 @@
 import re
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 # A dot-separated local part and domain labels without leading or trailing hyphens.
 _EMAIL_ATOM = r"[\w!#$%&'*+/=?^`{|}~-]+"
@@ -48,8 +49,17 @@ class UserResponse(BaseModel):
 
 
 class UpdateProfileRequest(BaseModel):
+    # Preserve the handling of unrelated fields while forbidding password explicitly.
+    model_config = ConfigDict(json_schema_extra={"not": {"required": ["password"]}})
+
     nickname: str | None = None
-    password: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_password(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "password" in data:
+            raise ValueError("Для смены пароля используйте POST /api/auth/me/password")
+        return data
 
 
 class ChangePasswordRequest(BaseModel):

@@ -188,20 +188,16 @@ class ChangePassword:
 @dataclass
 class UpdateProfileData:
     nickname: str | None = None
-    password: str | None = None
 
 
 class UpdateProfile:
-    def __init__(self, user_repo: UserRepository, hasher: PasswordHasher) -> None:
+    def __init__(self, user_repo: UserRepository) -> None:
         self._user_repo = user_repo
-        self._hasher = hasher
 
     def execute(self, user: User, data: UpdateProfileData) -> User:
-        if data.nickname is not None:
-            user.nickname = data.nickname
-        if data.password is not None:
-            user.hashed_password = self._hasher.hash(data.password)
-        return self._user_repo.save(user)
+        if data.nickname is None:
+            return user
+        return self._user_repo.update_nickname(user.id, data.nickname)
 
 
 class LogoutUser:
