@@ -1,5 +1,5 @@
 import axios, { CanceledError } from 'axios'
-import { accountSessionSignal, endAccountSession, readAccountToken, syncAccountSession } from './accountSession'
+import { accountSessionSignal, readAccountToken, refreshAccount, syncAccountSession } from './accountSession'
 import type {
   ActiveCategory,
   Category,
@@ -51,21 +51,6 @@ api.interceptors.request.use((config) => {
   return config
 }, (error) => { throw error }, { synchronous: true })
 
-let pendingRefresh: { signal: AbortSignal; promise: Promise<void> } | undefined
-
-async function refreshAccess(signal: AbortSignal) {
-  const refreshToken = readAccountToken('refresh_token')
-  if (!refreshToken) throw new Error('Missing refresh token')
-
-  const { data } = await axios.post('/api/auth/refresh', {
-    refresh_token: refreshToken,
-  }, { signal })
-  if (!syncAccountSession() || signal.aborted) throw new CanceledError()
-
-  localStorage.setItem('access_token', data.access_token)
-  localStorage.setItem('refresh_token', data.refresh_token)
-}
-
 api.interceptors.response.use(
   (response) => {
     if (!syncAccountSession() || response.config.signal?.aborted) throw new CanceledError()
@@ -78,19 +63,9 @@ api.interceptors.response.use(
     if (error.response?.status !== 401 || !signal || request._retry) throw error
 
     request._retry = true
-    if (pendingRefresh?.signal !== signal) {
-      pendingRefresh = { signal, promise: refreshAccess(signal) }
-    }
-    const refresh = pendingRefresh
-    try {
-      await refresh.promise
-    } catch {
-      if (syncAccountSession() && !signal.aborted) {
-        endAccountSession()
-      }
-      throw new CanceledError()
-    } finally {
-      if (pendingRefresh === refresh) pendingRefresh = undefined
+    const access = readAccountToken('access_token')
+    if (!access || request.headers.Authorization === `Bearer ${access}`) {
+      if (!(await refreshAccount())) throw new CanceledError()
     }
 
     if (!syncAccountSession() || signal.aborted) throw new CanceledError()

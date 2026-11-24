@@ -370,3 +370,42 @@ describe('account session isolation', () => {
     expect(useToastStore().toasts).toEqual([])
   })
 })
+
+it('uses the rotated pair in the auth store and sends its refresh token on logout', async () => {
+  const http = setupTransport()
+  const s = stores()
+  await login(s, 'A')
+  http.unauthorized()
+  http.refreshSucceeds()
+
+  await s.products.load()
+  expect(s.auth.accessToken).toBe('A-new')
+  expect(s.auth.refreshToken).toBe('refresh-A-new')
+  await s.auth.logout()
+
+  const logout = transport.send.mock.calls.find(([request]) => request.url === '/logout')
+  expect(JSON.parse(logout?.[0].data)).toEqual({ refresh_token: 'refresh-A-new' })
+})
+
+it('revokes a refresh token returned after logout has cleared the session', async () => {
+  const http = setupTransport()
+  const s = stores()
+  await login(s, 'A')
+  http.unauthorized()
+  http.refreshSucceeds()
+  http.delayRefresh()
+
+  const pending = s.products.load()
+  await http.refreshStarted.waiting
+  await s.auth.logout()
+  expectEmpty(s)
+  http.refreshFinish.release()
+  await pending
+
+  expectEmpty(s)
+  expect(localStorage.getItem('refresh_token')).toBeNull()
+  const logoutBodies = transport.send.mock.calls
+    .filter(([request]) => request.url === '/logout')
+    .map(([request]) => JSON.parse(request.data))
+  expect(logoutBodies).toContainEqual({ refresh_token: 'refresh-A-new' })
+})

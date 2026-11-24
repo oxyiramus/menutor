@@ -1,10 +1,15 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { useAuthStore } from '@/stores/auth';
 import * as api from '@/api/auth';
 vi.mock('@/api/auth');
 const user = { id: 1, email: 'a@example.com', nickname: 'A', created_at: '', last_login_at: null };
-beforeEach(() => { vi.resetAllMocks(); vi.mocked(api.getMe).mockResolvedValue(user); });
+let useAuthStore: typeof import('@/stores/auth').useAuthStore;
+beforeEach(async () => {
+    vi.resetModules();
+    vi.resetAllMocks();
+    vi.mocked(api.getMe).mockResolvedValue(user);
+    ({ useAuthStore } = await import('@/stores/auth'));
+});
 it('login stores session and logout revokes then clears it', async () => {
     vi.mocked(api.login).mockResolvedValue({ access_token: 'access', refresh_token: 'refresh', token_type: 'bearer' });
     const auth = useAuthStore();
