@@ -1,0 +1,44 @@
+services:
+  edge:
+    image: nginx:alpine
+    volumes:
+      - ./edge.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${PROXY_TEST_CERT_DIR:?run tests/proxy/run.sh}:/certs:ro
+    networks:
+      default:
+        ipv4_address: 172.29.103.2
+    depends_on:
+      - frontend
+  frontend:
+    image: nginx:alpine
+    volumes:
+      - ../../.docker/prod/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      default:
+        ipv4_address: 172.29.103.3
+    depends_on:
+      - backend
+  backend:
+    build:
+      context: ../..
+      dockerfile: .docker/prod/backend.dockerfile
+    environment:
+      FORWARDED_ALLOW_IPS: '172.29.103.3'
+    volumes:
+      - ./scope_app.py:/code/backend/api/main.py:ro
+  client:
+    image: python:3.14-slim
+    command: ["python", "/test/check_chain.py"]
+    volumes:
+      - ./check_chain.py:/test/check_chain.py:ro
+      - ${PROXY_TEST_CERT_DIR:?run tests/proxy/run.sh}:/certs:ro
+    networks:
+      default:
+        ipv4_address: 172.29.103.4
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.29.103.0/24
+          ip_range: 172.29.103.128/25
