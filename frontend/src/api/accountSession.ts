@@ -6,13 +6,6 @@ export function accountSessionSignal(): AbortSignal {
   return controller.value.signal
 }
 
-export function endAccountSession() {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  controller.value.abort()
-  controller.value = new AbortController()
-}
-
 const SESSION_KEY = 'menutor_account_session'
 const CLOSED_SESSION = 'closed:'
 let observedSession = localStorage.getItem(SESSION_KEY)
@@ -38,6 +31,16 @@ function publishSession(closed: boolean) {
   observedSession = closed ? CLOSED_SESSION + id : id
   currentSession = !closed
   localStorage.setItem(SESSION_KEY, observedSession)
+}
+
+export function endAccountSession() {
+  if (syncAccountSession()) {
+    // Invalidate other tabs before removing the tokens so an old refresh is discarded.
+    publishSession(true)
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+  }
+  resetLocalSession()
 }
 
 export function readAccountToken(key: 'access_token' | 'refresh_token'): string | null {

@@ -155,6 +155,41 @@ function expectEmpty(s: Stores) {
 }
 
 describe('account session isolation', () => {
+  it.each(['storage event', 'response'])(
+    'honors logout from another tab during a pending refresh (%s)',
+    async (firstNotice) => {
+      const adapter = setupTransport()
+      const s = stores()
+      await login(s, 'A')
+      await load(s)
+      adapter.unauthorized()
+      adapter.refreshSucceeds()
+      adapter.delayRefresh()
+      const pending = s.products.load()
+      await adapter.refreshStarted.waiting
+
+      // A separate module instance represents the tab sharing this localStorage.
+      vi.resetModules()
+      const { endAccountSession } = await import('@/api/accountSession')
+      endAccountSession()
+
+      try {
+        if (firstNotice === 'storage event') {
+          window.dispatchEvent(new StorageEvent('storage', {
+            key: 'menutor_account_session', storageArea: localStorage,
+          }))
+          expectEmpty(s)
+        }
+      } finally {
+        adapter.refreshFinish.release()
+        await pending
+      }
+      expectEmpty(s)
+      expect(localStorage.getItem('access_token')).toBeNull()
+      expect(localStorage.getItem('refresh_token')).toBeNull()
+    },
+  )
+
   it.each(['storage event', 'request', 'response'])(
     'isolates the old tab when another account replaces its session (%s)',
     async (firstNotice) => {
