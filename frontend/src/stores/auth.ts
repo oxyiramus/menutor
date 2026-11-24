@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { accountSessionSignal, endAccountSession, readAccountToken, saveAccountLogin, syncAccountSession } from '@/api/accountSession'
+import {
+  accountSessionSignal, accountTokens, endAccountSession, readAccountToken,
+  refreshAccount, revokeAccountRefresh, saveAccountLogin, syncAccountSession,
+} from '@/api/accountSession'
 import * as authApi from '@/api/auth'
 import type { LoginRequest, RegisterRequest, UserResponse } from '@/api/types'
 import { clearContextMenu } from '@/composables/useContextMenu'
@@ -38,12 +41,10 @@ export const useAuthStore = defineStore('auth', () => {
     clearPlannerClipboard()
   }, { flush: 'sync' })
 
-  function saveTokens(access: string, refresh: string) {
-    accessToken.value = access
-    refreshToken.value = refresh
-    localStorage.setItem(ACCESS_TOKEN_KEY, access)
-    localStorage.setItem(REFRESH_TOKEN_KEY, refresh)
-  }
+  watch(accountTokens, (pair) => {
+    accessToken.value = pair?.access_token ?? ''
+    refreshToken.value = pair?.refresh_token ?? ''
+  }, { flush: 'sync' })
 
   async function register(data: RegisterRequest) {
     const session = accountSessionSignal()
@@ -60,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
     const tokens = await authApi.login(data)
     syncAccountSession()
     session.throwIfAborted()
-    saveAccountLogin(() => saveTokens(tokens.access_token, tokens.refresh_token))
+    saveAccountLogin(tokens)
     try {
       await fetchUser()
       syncAccountSession()
@@ -68,26 +69,6 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       if (!session.aborted) endAccountSession()
       throw error
-    }
-  }
-
-  async function refresh(): Promise<boolean> {
-    if (!syncAccountSession()) return false
-    const session = accountSessionSignal()
-    if (!refreshToken.value) {
-      endAccountSession()
-      return false
-    }
-    try {
-      const tokens = await authApi.refreshTokens({
-        refresh_token: refreshToken.value,
-      })
-      if (!syncAccountSession() || session.aborted) return false
-      saveTokens(tokens.access_token, tokens.refresh_token)
-      return true
-    } catch {
-      if (!session.aborted) endAccountSession()
-      return false
     }
   }
 
@@ -107,13 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
     const token = readAccountToken(REFRESH_TOKEN_KEY)
     if (!syncAccountSession()) return
     endAccountSession()
-    if (token) {
-      try {
-        await authApi.logout({ refresh_token: token })
-      } catch {
-        /* ignore logout errors */
-      }
-    }
+    if (token) await revokeAccountRefresh(token)
   }
 
   async function init() {
@@ -125,7 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch {
       if (session.aborted) return
     }
-    const refreshed = await refresh()
+    const refreshed = await refreshAccount()
     if (!refreshed || session.aborted) return
     try {
       await fetchUser()
@@ -141,7 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     register,
     login,
-    refresh,
+    refresh: refreshAccount,
     fetchUser,
     logout,
     init,

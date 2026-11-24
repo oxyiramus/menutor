@@ -17,7 +17,7 @@ export const login = (data: LoginRequest) =>
   authApi.post<TokenResponse>('/login', data).then((r) => r.data)
 
 export const refreshTokens = (data: RefreshRequest) =>
-  authApi.post<TokenResponse>('/refresh', data).then((r) => r.data)
+  axios.post<TokenResponse>('/api/auth/refresh', data).then((r) => r.data)
 
 export const logout = (data: RefreshRequest) => authApi.post('/logout', data)
 
