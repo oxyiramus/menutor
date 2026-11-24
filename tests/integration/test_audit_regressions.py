@@ -87,11 +87,11 @@ def test_registration_login_and_password_change(auth):
     pair = login.execute(LoginData(user.email, "correct-password"))
     assert GetCurrentUser(tokens, users).execute(pair.access_token).id == user.id
     ChangePassword(users, hasher).execute(
-        user, ChangePasswordData("correct-password", "new-password")
+        user, ChangePasswordData("correct-password", "replacement-password")
     )
     with pytest.raises(AuthenticationError):
         login.execute(LoginData(user.email, "correct-password"))
-    assert login.execute(LoginData(user.email, "new-password")).access_token
+    assert login.execute(LoginData(user.email, "replacement-password")).access_token
 
 
 def test_refresh_rotation_and_logout(auth):

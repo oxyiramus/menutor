@@ -1,12 +1,14 @@
 """Production app/lifespan/container, without mock use cases or auth overrides."""
 
+from unicodedata import normalize
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from backend.api.main import app
-from backend.infrastructure.auth.bcrypt_password_hasher import BcryptPasswordHasher
 from backend.application.use_cases.auth import UpdateProfileData
+from backend.infrastructure.auth.bcrypt_password_hasher import BcryptPasswordHasher
 
 
 @pytest.fixture
@@ -363,3 +365,111 @@ def test_nickname_update_preserves_password_changed_after_profile_read(http_clie
         "/api/auth/login", json={"email": email, "password": "Replacement123!"}
     )
     assert login.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "password, accepted",
+    [
+        pytest.param("", False, id="empty"),
+        pytest.param("🔒" * 11, False, id="11-characters"),
+        pytest.param("🔒" * 12, True, id="12-characters"),
+        pytest.param("a" * 72, True, id="72-ascii-bytes"),
+        pytest.param("a" * 73, False, id="73-ascii-bytes"),
+        pytest.param("🔒" * 18, True, id="72-utf8-bytes"),
+        pytest.param("🔒" * 18 + "a", False, id="73-utf8-bytes"),
+        pytest.param(" e\u0301Password! ", True, id="preserve-input"),
+    ],
+)
+def test_password_policy_for_registration_and_change(
+    http_client, caplog, password, accepted
+):
+    client = http_client
+    email = "existing@example.com"
+    headers = register_login(client, email)
+    registered_email = "new@example.com"
+    registered = client.post(
+        "/api/auth/register", json={"email": registered_email, "password": password}
+    )
+    assert registered.status_code == (201 if accepted else 422)
+    changed = client.post(
+        "/api/auth/me/password",
+        headers=headers,
+        json={"current_password": "Password123!", "new_password": password},
+    )
+    assert changed.status_code == (204 if accepted else 422)
+    with app.state.container._engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM users")).scalar() == (
+            2 if accepted else 1
+        )
+    old_login = client.post(
+        "/api/auth/login", json={"email": email, "password": "Password123!"}
+    )
+    assert old_login.status_code == (401 if accepted else 200)
+
+    if accepted:
+        for address in (email, registered_email):
+            login = client.post(
+                "/api/auth/login", json={"email": address, "password": password}
+            )
+            assert login.status_code == 200
+    elif password:
+        assert password not in registered.text
+        assert password not in changed.text
+        assert password not in caplog.text
+
+    alternatives = {password.strip(), normalize("NFC", password)} - {password}
+    for alternative in alternatives:
+        login = client.post(
+            "/api/auth/login", json={"email": email, "password": alternative}
+        )
+        assert login.status_code == 401
+
+
+def test_password_policy_for_existing_credentials(http_client):
+    client = http_client
+    email = "legacy-short@example.com"
+    short_password = "old"
+    with app.state.container._engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (email, nickname, hashed_password, created_at) "
+                "VALUES (:email, 'legacy', :hashed_password, CURRENT_TIMESTAMP)"
+            ),
+            {
+                "email": email,
+                "hashed_password": BcryptPasswordHasher().hash(short_password),
+            },
+        )
+    login = client.post(
+        "/api/auth/login", json={"email": email, "password": short_password}
+    )
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    long_password = "🔒" * 18 + "a"
+    assert (
+        client.post(
+            "/api/auth/login", json={"email": email, "password": long_password}
+        ).status_code
+        == 422
+    )
+    for current, status in ((long_password, 422), (short_password, 204)):
+        assert (
+            client.post(
+                "/api/auth/me/password",
+                headers=headers,
+                json={"current_password": current, "new_password": "Replacement123!"},
+            ).status_code
+            == status
+        )
+
+
+def test_password_policy_does_not_echo_invalid_request_input(http_client, caplog):
+    secret = "private-password-value"
+    for path, body in (
+        ("/api/auth/login", {"password": secret}),
+        ("/api/auth/register", {"email": "test@example.com", "password": [secret]}),
+    ):
+        response = http_client.post(path, json=body)
+        assert response.status_code == 422
+        assert secret not in response.text
+    assert secret not in caplog.text

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isAxiosError } from 'axios'
 import { accountSessionSignal } from '@/api/accountSession'
 import { ref } from 'vue'
 import { changePassword } from '@/api/client'
@@ -17,10 +18,6 @@ async function onSubmit() {
     toast.show('Новые пароли не совпадают', 'error')
     return
   }
-  if (newPassword.value.length < 6) {
-    toast.show('Новый пароль должен содержать не менее 6 символов', 'error')
-    return
-  }
   loading.value = true
   try {
     await changePassword(currentPassword.value, newPassword.value)
@@ -29,8 +26,10 @@ async function onSubmit() {
     currentPassword.value = ''
     newPassword.value = ''
     confirmPassword.value = ''
-  } catch (e: any) {
-    if (!session.aborted) toast.show(e?.response?.data?.detail ?? 'Ошибка смены пароля', 'error')
+  } catch (error) {
+    if (session.aborted) return
+    const detail = isAxiosError(error) ? error.response?.data?.detail : undefined
+    toast.show(typeof detail === 'string' ? detail : 'Ошибка смены пароля', 'error')
   } finally {
     loading.value = false
   }
@@ -57,8 +56,12 @@ async function onSubmit() {
         v-model="newPassword"
         type="password"
         autocomplete="new-password"
+        aria-describedby="new-password-requirements"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
       />
+      <p id="new-password-requirements" class="mt-1 text-sm text-gray-500">
+        Минимум 12 символов, максимум 72 байта в UTF-8.
+      </p>
     </div>
 
     <div>

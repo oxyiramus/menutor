@@ -11,6 +11,7 @@ vi.mock('@/api/auth')
 
 it.each([
   [422, [{ loc: ['body', 'email'], msg: 'Invalid email' }], 'Введите корректный email'],
+  [422, 'Пароль должен содержать не менее 12 символов', 'Пароль должен содержать не менее 12 символов'],
   [409, 'Пользователь с таким email уже существует', 'Пользователь с таким email уже существует'],
 ])('shows a readable registration error for HTTP %i', async (status, detail, message) => {
   const error = new AxiosError()

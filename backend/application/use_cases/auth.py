@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from backend.application.use_cases.manage_meal_type import CreateSystemMealTypes
@@ -11,6 +11,10 @@ from backend.domain.ports.meal_type_repository import MealTypeRepository
 from backend.domain.ports.refresh_token_repository import RefreshTokenRepository
 from backend.domain.ports.user_repository import UserRepository
 from backend.domain.services.password_hasher import PasswordHasher
+from backend.domain.services.password_policy import (
+    validate_new_password,
+    validate_password_size,
+)
 from backend.domain.services.token_service import TokenService
 from backend.domain.value_objects.types import FamilyMemberId, RefreshTokenId, UserId
 
@@ -20,14 +24,14 @@ REFRESH_TOKEN_DAYS = 30
 @dataclass
 class RegisterData:
     email: str
-    password: str
+    password: str = field(repr=False)
     nickname: str = ""
 
 
 @dataclass
 class LoginData:
     email: str
-    password: str
+    password: str = field(repr=False)
 
 
 @dataclass
@@ -50,6 +54,7 @@ class RegisterUser:
         self._meal_type_repo = meal_type_repo
 
     def execute(self, data: RegisterData) -> User:
+        validate_new_password(data.password)
         existing = self._user_repo.get_by_email(data.email)
         if existing is not None:
             raise UserAlreadyExistsError(
@@ -88,6 +93,7 @@ class LoginUser:
         self._refresh_repo = refresh_repo
 
     def execute(self, data: LoginData) -> TokenPair:
+        validate_password_size(data.password)
         user = self._user_repo.get_by_email(data.email)
         if user is None or not self._hasher.verify(data.password, user.hashed_password):
             raise AuthenticationError("Неверный email или пароль")
@@ -169,8 +175,8 @@ class GetCurrentUser:
 
 @dataclass
 class ChangePasswordData:
-    current_password: str
-    new_password: str
+    current_password: str = field(repr=False)
+    new_password: str = field(repr=False)
 
 
 class ChangePassword:
@@ -179,6 +185,8 @@ class ChangePassword:
         self._hasher = hasher
 
     def execute(self, user: User, data: ChangePasswordData) -> None:
+        validate_password_size(data.current_password)
+        validate_new_password(data.new_password)
         if not self._hasher.verify(data.current_password, user.hashed_password):
             raise AuthenticationError("Неверный текущий пароль")
         user.hashed_password = self._hasher.hash(data.new_password)

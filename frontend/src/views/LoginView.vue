@@ -98,7 +98,8 @@ async function handleSubmit() {
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
               required
-              autocomplete="current-password"
+              :autocomplete="isRegister ? 'new-password' : 'current-password'"
+              :aria-describedby="isRegister ? 'registration-password-requirements' : undefined"
               class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2.5 pr-10 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 focus:outline-none sm:text-sm"
             />
             <button
@@ -115,6 +116,9 @@ async function handleSubmit() {
               </svg>
             </button>
           </div>
+          <p v-if="isRegister" id="registration-password-requirements" class="mt-1 text-sm text-gray-500">
+            Минимум 12 символов, максимум 72 байта в UTF-8.
+          </p>
         </div>
 
         <button
