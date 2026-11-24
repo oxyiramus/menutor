@@ -14,15 +14,19 @@ from backend.api.routers import (
     auth,
     categories,
     family,
+)
+from backend.api.routers import import_export as import_export_router
+from backend.api.routers import meal_types as meal_types_router
+from backend.api.routers import (
     menus,
     preferences,
     products,
     recipes,
+)
+from backend.api.routers import shopping_list as shopping_list_router
+from backend.api.routers import (
     system,
 )
-from backend.api.routers import import_export as import_export_router
-from backend.api.routers import meal_types as meal_types_router
-from backend.api.routers import shopping_list as shopping_list_router
 from backend.composition import ApplicationDatabase
 from backend.domain.exceptions import (
     AppError,

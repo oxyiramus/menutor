@@ -108,8 +108,7 @@ class ApplicationDatabase:
         load_dotenv(env_path)
         db_url = os.environ.get("DATABASE_URL", "sqlite:///data/menutor.db")
 
-    jwt_secret = _get_jwt_secret()
-        self.jwt_secret = _get_jwt_secret(db_url)
+        self.jwt_secret = _get_jwt_secret()
         self.engine = get_engine(db_url)
         self.sessions = sessionmaker(self.engine)
         try:
