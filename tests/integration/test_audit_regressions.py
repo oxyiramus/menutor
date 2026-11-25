@@ -267,3 +267,71 @@ def test_logout_revokes_without_rotation(auth):
     LogoutUser(tokens, refresh).execute(pair.refresh_token)
     with pytest.raises(AuthenticationError):
         RefreshAccessToken(tokens, refresh, users).execute(pair.refresh_token)
+
+
+def test_password_change_rolls_back_on_commit_error(conn, auth):
+    user, users, hasher, tokens, refresh, *_ = auth
+    login = LoginUser(users, hasher, tokens, refresh)
+    pair = login.execute(LoginData(user.email, "correct-password"))
+
+    def fail_commit(session):
+        session.flush()
+        password_hash = session.execute(
+            text("SELECT hashed_password FROM users WHERE id = :id"), {"id": user.id}
+        ).scalar_one()
+        assert hasher.verify("replacement-password", password_hash)
+        assert session.execute(
+            text("SELECT revoked FROM refresh_tokens WHERE user_id = :id"),
+            {"id": user.id},
+        ).scalar_one()
+        raise RuntimeError("injected commit error")
+
+    event.listen(conn, "before_commit", fail_commit)
+    try:
+        with pytest.raises(RuntimeError, match="injected commit error"):
+            ChangePassword(users, hasher).execute(
+                user, ChangePasswordData("correct-password", "replacement-password")
+            )
+    finally:
+        event.remove(conn, "before_commit", fail_commit)
+
+    assert login.execute(LoginData(user.email, "correct-password")).access_token
+    with pytest.raises(AuthenticationError):
+        login.execute(LoginData(user.email, "replacement-password"))
+    assert RefreshAccessToken(tokens, refresh, users).execute(pair.refresh_token)
+
+
+@pytest.mark.parametrize("valid_password", [True, False])
+def test_password_change_refresh_scope(auth, valid_password):
+    user, users, hasher, tokens, refresh, family, meals = auth
+    other = RegisterUser(users, hasher, family, meals).execute(
+        RegisterData("other@example.com", "correct-password")
+    )
+    login = LoginUser(users, hasher, tokens, refresh)
+    sessions = [
+        login.execute(LoginData(user.email, "correct-password")) for _ in range(2)
+    ]
+    foreign = login.execute(LoginData(other.email, "correct-password"))
+    change = ChangePassword(users, hasher)
+    replacement = "replacement-password"
+
+    if valid_password:
+        change.execute(user, ChangePasswordData("correct-password", replacement))
+    else:
+        with pytest.raises(AuthenticationError):
+            change.execute(user, ChangePasswordData("incorrect-password", replacement))
+
+    assert GetCurrentUser(tokens, users).execute(sessions[0].access_token).id == user.id
+    rotate = RefreshAccessToken(tokens, refresh, users)
+    for pair in sessions:
+        if valid_password:
+            with pytest.raises(AuthenticationError):
+                rotate.execute(pair.refresh_token)
+        else:
+            assert rotate.execute(pair.refresh_token)
+    assert rotate.execute(foreign.refresh_token)
+    accepted = replacement if valid_password else "correct-password"
+    rejected = "correct-password" if valid_password else replacement
+    assert login.execute(LoginData(user.email, accepted)).access_token
+    with pytest.raises(AuthenticationError):
+        login.execute(LoginData(user.email, rejected))

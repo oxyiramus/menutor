@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.domain.entities.refresh_token import RefreshToken
 from backend.domain.ports.refresh_token_repository import RefreshTokenRepository
 from backend.domain.value_objects.types import RefreshTokenId, UserId
-from backend.infrastructure.database.models import RefreshTokenRow
+from backend.infrastructure.database.models import RefreshTokenRow, UserRow
 
 
 class OrmRefreshTokenRepository(RefreshTokenRepository):
@@ -54,6 +54,14 @@ class OrmRefreshTokenRepository(RefreshTokenRepository):
 
     def rotate(self, token_hash: str, replacement: RefreshToken) -> bool:
         try:
+            # On PostgreSQL, take the account lock before touching refresh rows,
+            # in the same order as the password update. SQLite serializes writers.
+            (
+                self._session.query(UserRow.id)
+                .filter(UserRow.id == int(replacement.user_id))
+                .with_for_update(key_share=True)
+                .scalar()
+            )
             updated = (
                 self._session.query(RefreshTokenRow)
                 .filter(

@@ -187,8 +187,10 @@ class ChangePassword:
         validate_new_password(data.new_password)
         if not self._hasher.verify(data.current_password, user.hashed_password):
             raise AuthenticationError("Неверный текущий пароль")
-        user.hashed_password = self._hasher.hash(data.new_password)
-        self._user_repo.save(user)
+        if not self._user_repo.change_password_and_revoke_sessions(
+            user.id, user.hashed_password, self._hasher.hash(data.new_password)
+        ):
+            raise AuthenticationError("Неверный текущий пароль")
 
 
 @dataclass

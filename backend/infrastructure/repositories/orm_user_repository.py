@@ -9,6 +9,7 @@ from backend.domain.value_objects.types import UserId
 from backend.infrastructure.database.models import (
     ProductCategoryRow,
     RecipeCategoryRow,
+    RefreshTokenRow,
     UserRow,
 )
 from backend.infrastructure.repositories.base import BaseOrmRepository
@@ -93,3 +94,31 @@ class OrmUserRepository(
         if row is None:
             return None
         return self._row_to_entity(row)
+
+    def change_password_and_revoke_sessions(
+        self, user_id: UserId, expected_hash: str, new_hash: str
+    ) -> bool:
+        try:
+            updated = (
+                self._session.query(UserRow)
+                .filter(
+                    UserRow.id == int(user_id), UserRow.hashed_password == expected_hash
+                )
+                .update({"hashed_password": new_hash}, synchronize_session=False)
+            )
+            if updated == 0:
+                self._session.rollback()
+                return False
+            (
+                self._session.query(RefreshTokenRow)
+                .filter(
+                    RefreshTokenRow.user_id == int(user_id),
+                    RefreshTokenRow.revoked.is_(False),
+                )
+                .update({"revoked": True}, synchronize_session=False)
+            )
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
+        return True

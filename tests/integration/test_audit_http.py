@@ -478,3 +478,39 @@ def test_password_policy_does_not_echo_invalid_request_input(http_client, caplog
         assert response.status_code == 422
         assert secret not in response.text
     assert secret not in caplog.text
+
+
+@pytest.mark.parametrize("valid_password", [True, False])
+def test_password_change_refresh_sessions(http_client, valid_password):
+    client = http_client
+    alice = "alice@example.com"
+    headers = register_login(client, alice)
+    register_login(client, "bob@example.com")
+
+    def login(email, password="Password123!"):
+        return client.post(
+            "/api/auth/login", json={"email": email, "password": password}
+        )
+
+    sessions = [login(alice), login(alice), login("bob@example.com")]
+    assert all(session.status_code == 200 for session in sessions)
+    response = client.post(
+        "/api/auth/me/password",
+        headers=headers,
+        json={
+            "current_password": "Password123!" if valid_password else "Incorrect123!",
+            "new_password": "Replacement123!",
+        },
+    )
+    assert response.status_code == (204 if valid_password else 400)
+    assert client.get("/api/auth/me", headers=headers).status_code == 200
+    own_status = 401 if valid_password else 200
+    for session, expected in zip(sessions, (own_status, own_status, 200), strict=True):
+        response = client.post(
+            "/api/auth/refresh", json={"refresh_token": session.json()["refresh_token"]}
+        )
+        assert response.status_code == expected
+    assert login(alice).status_code == (401 if valid_password else 200)
+    assert login(alice, "Replacement123!").status_code == (
+        200 if valid_password else 401
+    )

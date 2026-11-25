@@ -105,10 +105,20 @@ pytest tests/ -q
 Для проверки ротации токенов обновления запустите следующую команду из корня проекта в окружении с тестовыми зависимостями. Тесты сами создают аккаунт и записи в SQLite в памяти. Ожидается `5 passed`. Проверка отката вызывает конфликт уникальности при записи замены, затем проверяет, что исходный токен можно обменять.
 
 ```bash
-python -m pytest -q tests/integration/test_audit_regressions.py -k 'refresh or logout'
+python -m pytest -q tests/integration/test_audit_regressions.py -k '(refresh or logout) and not password_change'
 ```
 
 Тесты PostgreSQL в `tests/integration/test_audit_postgresql.py` используют Testcontainers и требуют доступный Docker. Многие остальные тесты работают с SQLite.
+
+Проверки смены пароля сами создают тестовые аккаунты и сессии. Запускайте из корня проекта с установленными тестовыми зависимостями.
+
+```sh
+python -m pytest -q tests/integration/test_audit_regressions.py -k password_change
+python -m pytest -q tests/integration/test_audit_http.py::test_password_change_refresh_sessions
+python -m pytest -q tests/integration/test_audit_postgresql.py -k password_change_refresh_overlap
+```
+
+Ожидается `4 passed` для SQLite, `2 passed` для HTTP и `2 passed` для PostgreSQL. Для PostgreSQL можно задать `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой базы и правом создавать схемы. При отсутствии URL тест использует Docker и образ `postgres:18-alpine`. Тест создаёт временную схему, приостанавливает первую транзакцию перед фиксацией, через `pg_blocking_pids` проверяет ожидание второй и только затем снимает паузу. Проверяются оба порядка фиксации, после теста схема удаляется.
 
 Для регрессии CORS и Bearer-авторизации запустите из корня репозитория с пустым списком разрешённых origins:
 
