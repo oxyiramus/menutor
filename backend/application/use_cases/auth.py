@@ -133,9 +133,6 @@ class RefreshAccessToken:
         if stored is None or stored.revoked or stored.expires_at < datetime.now(UTC):
             raise AuthenticationError("Refresh-токен недействителен или истёк")
 
-        # Rotate: revoke old, issue new
-        self._refresh_repo.revoke(token_hash)
-
         user = self._user_repo.get_by_id(stored.user_id)
         if user is None:
             raise AuthenticationError("Пользователь не найден")
@@ -149,7 +146,8 @@ class RefreshAccessToken:
             token_hash=self._token_service.get_refresh_token_hash(new_raw_refresh),
             expires_at=datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_DAYS),
         )
-        self._refresh_repo.save(new_entry)
+        if not self._refresh_repo.rotate(token_hash, new_entry):
+            raise AuthenticationError("Refresh-токен недействителен или истёк")
 
         return TokenPair(access_token=new_access, refresh_token=new_raw_refresh)
 

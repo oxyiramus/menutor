@@ -6,7 +6,8 @@ from decimal import Decimal
 
 import jwt
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.exc import IntegrityError
 
 from backend.application.paginated_result import PAGE_SIZE
 from backend.application.use_cases.auth import (
@@ -40,6 +41,7 @@ from backend.domain.value_objects.money import Money
 from backend.domain.value_objects.types import ProductCategoryId, ProductId, UserId
 from backend.infrastructure.auth.bcrypt_password_hasher import BcryptPasswordHasher
 from backend.infrastructure.auth.jwt_token_service import JwtTokenService
+from backend.infrastructure.database.models import RefreshTokenRow
 from backend.infrastructure.export.registry import ImportRegistry
 from backend.infrastructure.import_.product_json_importer import ProductJsonImporter
 from backend.infrastructure.repositories.orm_family_member_repository import (
@@ -107,6 +109,28 @@ def test_refresh_rotation_and_logout(auth):
     LogoutUser(tokens, refresh).execute(rotated.refresh_token)
     with pytest.raises(AuthenticationError):
         rotate.execute(rotated.refresh_token)
+
+
+def test_refresh_rotation_rolls_back_on_insert_error(conn, auth):
+    user, users, hasher, tokens, refresh, *_ = auth
+    pair = LoginUser(users, hasher, tokens, refresh).execute(
+        LoginData(user.email, "correct-password")
+    )
+    rotate = RefreshAccessToken(tokens, refresh, users)
+    original_hash = tokens.get_refresh_token_hash(pair.refresh_token)
+
+    def duplicate_hash(mapper, connection, row):
+        row.token_hash = original_hash
+
+    event.listen(RefreshTokenRow, "before_insert", duplicate_hash)
+    try:
+        with pytest.raises(IntegrityError):
+            rotate.execute(pair.refresh_token)
+    finally:
+        event.remove(RefreshTokenRow, "before_insert", duplicate_hash)
+
+    conn.rollback()
+    assert rotate.execute(pair.refresh_token).refresh_token != pair.refresh_token
 
 
 @pytest.mark.parametrize("kind", ["expired", "signature", "refresh-type"])

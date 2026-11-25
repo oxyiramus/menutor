@@ -88,6 +88,12 @@ pytest tests/integration -q
 pytest tests/ -q
 ```
 
+Для проверки ротации токенов обновления запустите следующую команду из корня проекта в окружении с тестовыми зависимостями. Тесты сами создают аккаунт и записи в SQLite в памяти. Ожидается `5 passed`. Проверка отката вызывает конфликт уникальности при записи замены, затем проверяет, что исходный токен можно обменять.
+
+```bash
+python -m pytest -q tests/integration/test_audit_regressions.py -k 'refresh or logout'
+```
+
 Тесты PostgreSQL в `tests/integration/test_audit_postgresql.py` используют Testcontainers и требуют доступный Docker. Многие остальные тесты работают с SQLite.
 
 Для регрессии CORS и Bearer-авторизации запустите из корня репозитория с пустым списком разрешённых origins:
