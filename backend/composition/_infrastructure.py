@@ -90,14 +90,12 @@ _JWT_SECRET_PLACEHOLDERS = frozenset(
 def _get_jwt_secret() -> str:
     """Require an explicit JWT secret before initializing the database."""
     secret = os.environ.get("JWT_SECRET_KEY")
-    if secret:
-        return secret
-    if db_url.startswith("sqlite"):
-        return _TEST_JWT_SECRET
-    raise RuntimeError(
-        "JWT_SECRET_KEY environment variable is required for non-SQLite databases. "
-        "Set it in .config/.env or your environment."
-    )
+    if not secret or secret in _JWT_SECRET_PLACEHOLDERS:
+        raise RuntimeError(
+            "Set JWT_SECRET_KEY to your own non-empty key in .config/.env "
+            "or your environment. Example and fallback keys are rejected."
+        )
+    return secret
 
 
 class ApplicationDatabase:

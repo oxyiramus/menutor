@@ -77,11 +77,7 @@ async def test_explicit_jwt_key_allows_startup(startup_database, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", startup_database)
     monkeypatch.setenv("JWT_SECRET_KEY", "jwt-startup-test-key-at-least-32-bytes")
     async with app.router.lifespan_context(app):
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                assert (await client.get("/openapi.json")).status_code == 200
-        finally:
-            app.state.container._session.close()
-            app.state.container._engine.dispose()
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            assert (await client.get("/openapi.json")).status_code == 200

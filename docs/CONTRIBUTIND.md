@@ -100,10 +100,23 @@ CORS_ALLOWED_ORIGINS='' python -m pytest -q tests/unit/api/test_cors.py tests/in
 
 Для проверки запуска с JWT-ключом выполните `python -m pytest -q tests/integration/test_jwt_startup.py`. Ожидается `9 passed, 1 skipped`. Для полного прогона задайте `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой базы PostgreSQL и правом создавать схемы. Тест сам создаст и удалит временную схему. Ожидается `10 passed`.
 
-Для проверки границ сессии задайте `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой БД PostgreSQL. Роли подключения нужно право создавать схемы. Тест создаёт временную схему и два аккаунта, удерживает первый запрос в обработчике и выполняет второй до возобновления первого. Ожидаемый результат команды — `1 passed`.
+Для проверки границ сессии задайте `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой БД PostgreSQL. Роли подключения нужно право создавать схемы. Каждый тест создаёт и удаляет временную схему и сам регистрирует два аккаунта. Ожидаемый результат команды — `2 passed, 4 deselected`.
 
 ```sh
 pytest -q tests/integration/test_request_sessions.py -k postgresql
+```
+
+Первый тест удерживает запрос в обработчике и проверяет, что аутентификация и обработчик используют одну сессию, а параллельный запрос получает другую. Второй удерживает импорт сразу после записи первого продукта, дожидается успешного входа другого аккаунта и возобновляет импорт. Некорректная вторая строка приводит к HTTP 422. Независимое соединение с БД подтверждает, что продукт отсутствует как после входа, так и после отката импорта. Число токенов обновления увеличивается только у вошедшего аккаунта.
+
+Проверки завершения сессий, принадлежности объектов и атомарности импорта на SQLite создают данные самостоятельно:
+
+```sh
+pytest -q tests/integration/test_request_sessions.py \
+  tests/integration/test_api_data_isolation.py \
+  tests/integration/test_related_object_isolation.py \
+  tests/integration/test_derived_data_isolation.py \
+  tests/integration/test_audit_regressions.py \
+  tests/integration/test_audit_files.py -k 'not postgresql'
 ```
 
 ```sh
