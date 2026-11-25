@@ -50,6 +50,10 @@ class ImportValidationError(AppError):
     """Uploaded file has invalid format or data."""
 
 
+class ImportLimitExceededError(AppError):
+    """Uploaded file exceeds an import resource limit."""
+
+
 class DuplicateNameError(DomainError):
     """Entity with this name already exists for the current user."""
 

@@ -9,7 +9,8 @@ from backend.api.deps import get_container
 from backend.api.schemas.import_export import ImportResultResponse
 from backend.composition_root import ApplicationContainer
 from backend.domain.entities.user import User
-from backend.domain.exceptions import ImportValidationError
+from backend.domain.exceptions import ImportLimitExceededError, ImportValidationError
+from backend.import_limits import max_file_bytes
 
 router = APIRouter(tags=["import-export"])
 logger = logging.getLogger(__name__)
@@ -66,8 +67,13 @@ def import_entities(
     user: Annotated[User, Depends(get_current_user)],
 ) -> ImportResultResponse:
     try:
-        data = file.file.read()
+        limit = max_file_bytes()
+        data = file.file.read(limit + 1)
+        if len(data) > limit:
+            raise ImportLimitExceededError(f"Размер файла превышает {limit} байт")
         result = container.import_entities.execute(entity_type, format, data, user.id)
+    except ImportLimitExceededError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from None
     except ImportValidationError:
         raise
     except Exception:  # noqa: BLE001 - Translate unexpected import failures at the HTTP boundary.
