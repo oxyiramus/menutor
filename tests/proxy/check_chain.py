@@ -27,6 +27,23 @@ def wait_for_chain(origin):
             time.sleep(0.5)
 
 
+def check_import_transport(origin):
+    file = b"[]" + b" " * (1024 * 1024 - 2)
+    multipart_header = (
+        b'--upload\r\nContent-Disposition: form-data; name="file"; filename="test.json"'
+        b"\r\nContent-Type: application/json\r\n\r\n"
+    )
+    body = multipart_header + file + b"\r\n--upload--\r\n"
+    probe = Request(
+        origin + PATH + "/upload",
+        data=body,
+        headers={"Content-Type": "multipart/form-data; boundary=upload"},
+    )
+    with urlopen(probe, context=TLS, timeout=5) as response:
+        assert json.load(response) == {"body_bytes": len(body)}
+    print(f"{origin}: multipart с файлом 1048576 байт прошёл", flush=True)
+
+
 def main():
     if sys.argv[1:] == ["host"]:
         cases = (
@@ -54,6 +71,7 @@ def main():
         if actual != expected:
             raise AssertionError(f"{label}: {actual!r} != {expected!r}")
         print(f"{label}: {actual['scheme']} {actual['client']}", flush=True)
+        check_import_transport(origin)
 
 
 if __name__ == "__main__":
