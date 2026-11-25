@@ -13,3 +13,4 @@ data
 /docs/review/
 .config/proxy-trust.conf
 tests/proxy/.certs.*/
+compose.override.yaml
