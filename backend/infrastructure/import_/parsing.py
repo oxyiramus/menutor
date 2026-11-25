@@ -20,7 +20,9 @@ def json_rows(data: bytes) -> list[Any]:
 
 def csv_rows(data: bytes) -> Iterator[dict[str, str]]:
     try:
-        yield from csv.DictReader(io.StringIO(data.decode("utf-8")), restval="")
+        yield from csv.DictReader(
+            io.StringIO(data.decode("utf-8")), restval="", strict=True
+        )
     except (UnicodeDecodeError, csv.Error) as exc:
         raise ImportValidationError("Не удалось прочитать CSV") from exc
 

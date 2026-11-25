@@ -84,3 +84,24 @@ def test_recipe_reference_lookup_failure_is_technical(isolation_users, monkeypat
     response = import_rows(client, alice, "recipes", "json", [row])
     assert response.status_code == 500
     assert response.json() == {"detail": "Не удалось выполнить импорт"}
+
+
+def test_malformed_csv_is_safe_and_rolls_back(isolation_users):
+    client, (alice, _) = isolation_users
+    headers = alice["headers"]
+    before = request_ok(client, "GET", "products", headers)
+    category_id = alice["bodies"]["products"]["category_id"]
+    content = (
+        "name,category_id,recipe_unit,purchase_unit,price_amount\n"
+        f"First row,{category_id},g,kg,10\n"
+        f'Private file record,{category_id},g,kg,"20'
+    )
+    response = client.post(
+        "/api/products/import/csv",
+        headers=headers,
+        files={"file": ("upload.csv", content.encode())},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Не удалось прочитать CSV"}
+    assert request_ok(client, "GET", "products", headers) == before
