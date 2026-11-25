@@ -39,3 +39,4 @@ sed -e 's/listen 80;/listen 127.0.0.1:18081;/' \
 compose up --build -d edge
 compose run --rm --no-deps host-client
 compose run --rm --no-deps client
+python3 check_rate_limit.py "$project"
