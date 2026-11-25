@@ -1,5 +1,6 @@
 """Verify the lifetime of real HTTP request sessions."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
@@ -12,7 +13,10 @@ from backend.api.main import app
 from backend.application.use_cases.auth import GetCurrentUser
 from backend.application.use_cases.manage_product import ListProducts
 from backend.domain.exceptions import DomainError
-from tests.integration.test_audit_http import register_login
+from backend.infrastructure.repositories.orm_product_repository import (
+    OrmProductRepository,
+)
+from tests.integration.test_audit_http import active_category_id, register_login
 from tests.integration.test_personal_category_migration import (
     migration_database as migration_database,
 )
@@ -117,3 +121,78 @@ def test_request_closes_session_and_discards_pending_changes(
     assert isolation_client.get("/api/products", headers=headers).status_code == 200
     assert used[1] is not used[0]
     assert used[1] in closed
+
+
+@pytest.mark.parametrize("migration_database", ["postgresql"], indirect=True)
+def test_login_cannot_commit_another_requests_import(migration_database, monkeypatch):
+    engine, _ = migration_database
+    monkeypatch.setenv(
+        "JWT_SECRET_KEY", "request-session-test-secret-at-least-32-bytes"
+    )
+    first_saved = Event()
+    resume_import = Event()
+    save_product = OrmProductRepository.save
+    product_name = "Pending import"
+
+    def pause_after_save(repo, product):
+        saved = save_product(repo, product)
+        if product.name == product_name:
+            first_saved.set()
+            assert resume_import.wait(timeout=10), "Import was not resumed"
+        return saved
+
+    def persisted_state():
+        with engine.connect() as connection:
+            products = (
+                connection.execute(text("SELECT name FROM products")).scalars().all()
+            )
+            refresh_counts = dict(
+                connection.execute(
+                    text(
+                        "SELECT users.email, count(refresh_tokens.id) FROM users "
+                        "LEFT JOIN refresh_tokens ON refresh_tokens.user_id = users.id "
+                        "GROUP BY users.email"
+                    )
+                )
+                .tuples()
+                .all()
+            )
+        return products, refresh_counts
+
+    with TestClient(app) as client:
+        headers = register_login(client, "importer@example.com")
+        register_login(client, "login@example.com")
+        valid = {
+            "name": product_name,
+            "category_id": active_category_id(client, "products", headers),
+            "recipe_unit": "g",
+            "purchase_unit": "kg",
+            "price_amount": "99",
+        }
+        payload = json.dumps([valid, {"name": "Invalid"}])
+        monkeypatch.setattr(OrmProductRepository, "save", pause_after_save)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(
+                client.post,
+                "/api/products/import/json",
+                headers=headers,
+                files={"file": ("products.json", payload, "application/json")},
+            )
+            try:
+                assert first_saved.wait(timeout=10), "First import row was not saved"
+                login = client.post(
+                    "/api/auth/login",
+                    json={"email": "login@example.com", "password": "Password123!"},
+                )
+                assert login.status_code == 200, login.text
+                assert not pending.done()
+                during_import = persisted_state()
+            finally:
+                resume_import.set()
+            failed_import = pending.result(timeout=10)
+
+        assert failed_import.status_code == 422, failed_import.text
+        expected = ([], {"importer@example.com": 1, "login@example.com": 2})
+        assert during_import == expected
+        assert persisted_state() == expected
