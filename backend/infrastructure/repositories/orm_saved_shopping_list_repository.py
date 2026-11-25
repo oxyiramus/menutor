@@ -20,10 +20,12 @@ from backend.domain.value_objects.types import (
     UserId,
 )
 from backend.infrastructure.database.models import (
+    ProductRow,
     ShoppingListItemRow,
     ShoppingListRow,
 )
 from backend.infrastructure.repositories.base import BaseOrmRepository
+from backend.infrastructure.repositories.ownership import require_owned
 
 
 class OrmSavedShoppingListRepository(
@@ -34,6 +36,14 @@ class OrmSavedShoppingListRepository(
 
     def __init__(self, session: Session) -> None:
         super().__init__(session)
+
+    def save(self, entity: SavedShoppingList) -> SavedShoppingList:
+        for item in entity.items:
+            if item.product_id is not None:
+                require_owned(
+                    self._session, ProductRow, item.product_id, entity.user_id
+                )
+        return super().save(entity)
 
     def _get_entity_id(self, entity: SavedShoppingList) -> int:
         return entity.id

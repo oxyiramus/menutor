@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { accountSessionSignal } from '@/api/accountSession'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchMealSummary, generateFilteredShoppingList } from '@/api/client'
@@ -157,6 +158,8 @@ const standaloneProducts = computed(() => summary.value?.products ?? [])
 
 // ── Load ───────────────────────────────────────────────────────────────────
 
+const session = accountSessionSignal()
+
 async function loadSummary() {
   loading.value = true
   error.value = null
@@ -182,7 +185,7 @@ const mealTypeNames = computed<Record<number, string>>(() =>
 
 onMounted(async () => {
   await mealTypeStore.load()
-  await loadSummary()
+  if (!session.aborted) await loadSummary()
 })
 
 // ── Toggle functions ───────────────────────────────────────────────────────
@@ -283,12 +286,13 @@ async function doGenerate(): Promise<void> {
     const excludedSubRecipeIds = [...deselectedSubRecipes.value]
 
     const list = await generateFilteredShoppingList(menuId.value, slotIndices, excludedSubRecipeIds)
+    if (session.aborted) return
     shoppingStore.data = list
     shoppingStore.currentListId = list.id
     toast.show('Список покупок сформирован', 'success')
     router.push({ path: '/shopping-list' })
   } catch {
-    toast.show('Ошибка формирования списка', 'error')
+    if (!session.aborted) toast.show('Ошибка формирования списка', 'error')
   } finally {
     generating.value = false
   }

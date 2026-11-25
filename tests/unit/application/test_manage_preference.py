@@ -101,38 +101,21 @@ def test_update_preference_same_name_same_id_succeeds() -> None:
 
 # ---- DeletePreference ----
 
-def test_delete_preference_unlinks_from_members_and_deletes() -> None:
-    from backend.domain.entities.family_member import FamilyMember
-    from backend.domain.value_objects.types import FamilyMemberId
 
+def test_delete_owned_preference() -> None:
     pref_repo = MagicMock()
-    family_repo = MagicMock()
     pref_repo.get_by_id.return_value = _pref(id=1)
-
-    member = FamilyMember(
-        id=FamilyMemberId(10),
-        name="Боб",
-        preference_ids=[PreferenceId(1), PreferenceId(2)],
-        user_id=UID,
-    )
-    family_repo.find_all.return_value = [member]
-    family_repo.save.return_value = member
-
-    DeletePreference(pref_repo, family_repo).execute(PreferenceId(1), UID)
-
-    family_repo.save.assert_called_once()
+    DeletePreference(pref_repo).execute(PreferenceId(1), UID)
     pref_repo.delete.assert_called_once_with([PreferenceId(1)])
 
 
 def test_delete_preference_not_owned_does_nothing() -> None:
     pref_repo = MagicMock()
-    family_repo = MagicMock()
     pref_repo.get_by_id.return_value = None  # not found
 
-    DeletePreference(pref_repo, family_repo).execute(PreferenceId(999), UID)
+    DeletePreference(pref_repo).execute(PreferenceId(999), UID)
 
     pref_repo.delete.assert_not_called()
-    family_repo.find_all.assert_not_called()
 
 
 # ---- GetEntity / ListEntities (used as GetPreference / ListPreferences) ----

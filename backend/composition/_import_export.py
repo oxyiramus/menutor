@@ -38,12 +38,26 @@ def _wire_import_export(
     export_registry.register("shopping_list", "pdf", infra.pdf_exporter)
 
     import_registry = ImportRegistry()
-    import_registry.register("products", "csv", ProductCsvImporter(infra.product_repo))
     import_registry.register(
-        "products", "json", ProductJsonImporter(infra.product_repo)
+        "products",
+        "csv",
+        ProductCsvImporter(infra.product_repo, infra.product_category_repo),
     )
-    import_registry.register("recipes", "csv", RecipeCsvImporter(infra.recipe_repo))
-    import_registry.register("recipes", "json", RecipeJsonImporter(infra.recipe_repo))
+    import_registry.register(
+        "products",
+        "json",
+        ProductJsonImporter(infra.product_repo, infra.product_category_repo),
+    )
+    import_registry.register(
+        "recipes",
+        "csv",
+        RecipeCsvImporter(infra.recipe_repo, infra.recipe_category_repo),
+    )
+    import_registry.register(
+        "recipes",
+        "json",
+        RecipeJsonImporter(infra.recipe_repo, infra.recipe_category_repo),
+    )
     import_registry.register("menus", "json", MenuJsonImporter(infra.menu_repo))
 
     return {
@@ -52,6 +66,8 @@ def _wire_import_export(
             infra.product_repo,
             infra.recipe_repo,
             infra.menu_repo,
+            infra.product_category_repo,
+            infra.recipe_category_repo,
         ),
         "import_entities": ImportEntities(import_registry, infra.session),
         "export_shopping_list": ExportShoppingList(

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -5,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.domain.entities.refresh_token import RefreshToken
 from backend.domain.ports.refresh_token_repository import RefreshTokenRepository
 from backend.domain.value_objects.types import RefreshTokenId, UserId
-from backend.infrastructure.database.models import RefreshTokenRow
+from backend.infrastructure.database.models import RefreshTokenRow, UserRow
 
 
 class OrmRefreshTokenRepository(RefreshTokenRepository):
@@ -13,15 +14,25 @@ class OrmRefreshTokenRepository(RefreshTokenRepository):
         self._session = session
 
     def _row_to_entity(self, row: Any) -> RefreshToken:
+        # SQLite returns naive timestamps; refresh expiry is stored in UTC.
+        expires_at = row.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
         return RefreshToken(
             id=RefreshTokenId(row.id),
             user_id=UserId(row.user_id),
             token_hash=row.token_hash,
-            expires_at=row.expires_at,
+            expires_at=expires_at,
             revoked=row.revoked,
         )
 
     def save(self, token: RefreshToken) -> RefreshToken:
+        row = self._add(token)
+        self._session.flush()
+        self._session.commit()
+        return self._row_to_entity(row)
+
+    def _add(self, token: RefreshToken) -> RefreshTokenRow:
         row = RefreshTokenRow(
             user_id=int(token.user_id),
             token_hash=token.token_hash,
@@ -29,9 +40,7 @@ class OrmRefreshTokenRepository(RefreshTokenRepository):
             revoked=token.revoked,
         )
         self._session.add(row)
-        self._session.flush()
-        self._session.commit()
-        return self._row_to_entity(row)
+        return row
 
     def get_by_token_hash(self, token_hash: str) -> RefreshToken | None:
         row = (
@@ -42,6 +51,36 @@ class OrmRefreshTokenRepository(RefreshTokenRepository):
         if row is None:
             return None
         return self._row_to_entity(row)
+
+    def rotate(self, token_hash: str, replacement: RefreshToken) -> bool:
+        try:
+            # On PostgreSQL, take the account lock before touching refresh rows,
+            # in the same order as the password update. SQLite serializes writers.
+            (
+                self._session.query(UserRow.id)
+                .filter(UserRow.id == int(replacement.user_id))
+                .with_for_update(key_share=True)
+                .scalar()
+            )
+            updated = (
+                self._session.query(RefreshTokenRow)
+                .filter(
+                    RefreshTokenRow.token_hash == token_hash,
+                    RefreshTokenRow.user_id == int(replacement.user_id),
+                    RefreshTokenRow.revoked.is_(False),
+                    RefreshTokenRow.expires_at > datetime.now(UTC),
+                )
+                .update({"revoked": True}, synchronize_session=False)
+            )
+            if updated == 0:
+                self._session.rollback()
+                return False
+            self._add(replacement)
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
+        return True
 
     def revoke(self, token_hash: str) -> None:
         row: Any = (

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { accountSessionSignal } from '@/api/accountSession'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import type { SavedShoppingListItem } from '@/api/types'
@@ -86,6 +87,7 @@ async function onCreateList() {
 }
 
 // ---- Save ----
+const session = accountSessionSignal()
 const saving = ref(false)
 
 async function onSave() {
@@ -139,7 +141,7 @@ async function onEditPriceConfirm(val: string) {
   try {
     await productStore.patchPrice(productId, num)
   } catch {
-    toast.show('Ошибка обновления цены продукта', 'error')
+    if (!session.aborted) toast.show('Ошибка обновления цены продукта', 'error')
   }
 }
 
@@ -239,7 +241,7 @@ async function onExportPdf() {
     const blob = await downloadShoppingListPdf(sourceMenuId)
     downloadBlob(blob, 'shopping_list.pdf')
   } catch {
-    toast.show('Ошибка экспорта в PDF', 'error')
+    if (!session.aborted) toast.show('Ошибка экспорта в PDF', 'error')
   }
 }
 
@@ -257,7 +259,7 @@ async function onExport(format: string) {
         const blob = await downloadShoppingListJson(sourceMenuId)
         downloadBlob(blob, 'shopping_list.json')
       } catch {
-        toast.show('Ошибка экспорта в JSON', 'error')
+        if (!session.aborted) toast.show('Ошибка экспорта в JSON', 'error')
       } finally {
         exportLoading.value = false
       }

@@ -1,6 +1,10 @@
+from collections.abc import Callable, Coroutine
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 
 from backend.api.auth import get_current_user
 from backend.api.deps import get_container
@@ -23,7 +27,26 @@ from backend.composition_root import ApplicationContainer
 from backend.domain.entities.user import User
 from backend.domain.exceptions import AuthenticationError
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+
+class AuthRoute(APIRoute):
+    def get_route_handler(self) -> Callable[[Request], Coroutine[None, None, Response]]:
+        handler = super().get_route_handler()
+
+        async def handle(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError as exc:
+                # Even a missing field can put the entire body in the error input.
+                details = [
+                    {key: error[key] for key in ("type", "loc", "msg")}
+                    for error in exc.errors()
+                ]
+                return JSONResponse(status_code=422, content={"detail": details})
+
+        return handle
+
+
+router = APIRouter(prefix="/auth", tags=["auth"], route_class=AuthRoute)
 
 
 @router.post(
@@ -127,7 +150,7 @@ def update_me(
     container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> UserResponse:
     updated = container.update_profile.execute(
-        user, UpdateProfileData(nickname=body.nickname, password=body.password)
+        user, UpdateProfileData(nickname=body.nickname)
     )
     return UserResponse(
         id=int(updated.id),

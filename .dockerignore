@@ -1,0 +1,3 @@
+.docker/volumes/
+.config/proxy-trust.conf
+tests/proxy/.certs.*/

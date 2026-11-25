@@ -1,6 +1,7 @@
 from typing import Any
 
 from backend.domain.exceptions import ImportValidationError
+from backend.domain.ports.category_repository import CategoryRepository
 from backend.domain.ports.menu_repository import MenuRepository
 from backend.domain.ports.product_repository import ProductRepository
 from backend.domain.ports.recipe_repository import RecipeRepository
@@ -20,11 +21,17 @@ class ExportEntities:
         product_repo: ProductRepository,
         recipe_repo: RecipeRepository,
         menu_repo: MenuRepository,
+        product_categories: CategoryRepository | None = None,
+        recipe_categories: CategoryRepository | None = None,
     ) -> None:
         self._registry = export_registry
         self._product_repo = product_repo
         self._recipe_repo = recipe_repo
         self._menu_repo = menu_repo
+        self._categories = {
+            "products": product_categories,
+            "recipes": recipe_categories,
+        }
 
     def execute(
         self,
@@ -43,14 +50,29 @@ class ExportEntities:
         filename = f"{entity_type}.{exporter.file_extension()}"
         return data, exporter.content_type(), filename
 
-    def example(self, entity_type: str, format: str) -> tuple[bytes, str, str]:
+    def example(
+        self, entity_type: str, format: str, user_id: UserId | None = None
+    ) -> tuple[bytes, str, str]:
         exporter = self._registry.get(entity_type, format)
         if exporter is None:
             raise ImportValidationError(
                 f"Формат '{format}' не поддерживается для '{entity_type}'"
             )
         filename = f"example_{entity_type}.{exporter.file_extension()}"
-        return exporter.example_bytes(), exporter.content_type(), filename
+        categories = self._categories.get(entity_type)
+        category_id = None
+        if user_id is not None and categories is not None and format != "json_compact":
+            catalog = categories.find_active(user_id) or categories.find_all(user_id)
+            if not catalog:
+                raise ImportValidationError(
+                    "Создайте категорию, чтобы скачать пример импорта"
+                )
+            category_id = catalog[0].id
+        return (
+            exporter.example_bytes(category_id=category_id),
+            exporter.content_type(),
+            filename,
+        )
 
     def _load_entities(
         self,

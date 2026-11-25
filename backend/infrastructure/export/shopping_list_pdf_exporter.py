@@ -212,7 +212,7 @@ class ShoppingListPdfExporter:
         shopping_list: ShoppingList = entities[0]
         return _build_pdf(shopping_list, category_colors)
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         from decimal import Decimal
 
         from backend.domain.entities.shopping_list import ShoppingListItem

@@ -1,5 +1,7 @@
 """ApplicationContainer — slim orchestrator calling domain sub-registries."""
 
+from sqlalchemy.orm import Session
+
 from backend.application.use_cases.assign_preferences import AssignPreferencesToMember
 from backend.application.use_cases.auth import (
     ChangePassword,
@@ -103,7 +105,7 @@ from backend.composition._shopping import _wire_shopping
 
 
 class ApplicationContainer:
-    """Dependency graph. Created once at startup."""
+    """Dependency graph bound to one HTTP request."""
 
     add_dish_to_slot: AddDishToSlot
     assign_preferences_to_member: AssignPreferencesToMember
@@ -173,8 +175,8 @@ class ApplicationContainer:
     update_saved_shopping_list: UpdateSavedShoppingList
     validate_sub_recipe: ValidateSubRecipe
 
-    def __init__(self, db_url: str | None = None) -> None:
-        infra = _create_infrastructure(db_url)
+    def __init__(self, session: Session, jwt_secret: str) -> None:
+        infra = _create_infrastructure(session, jwt_secret)
 
         for name, obj in _wire_auth(infra).items():
             setattr(self, name, obj)
@@ -200,6 +202,3 @@ class ApplicationContainer:
             infra, self.generate_shopping_list
         ).items():
             setattr(self, name, obj)
-
-        self._engine = infra.engine
-        self._session = infra.session

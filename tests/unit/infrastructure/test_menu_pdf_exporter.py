@@ -63,16 +63,6 @@ def _product_slot(
 
 
 class TestMenuPdfExporter:
-    def test_returns_bytes(self) -> None:
-        menu = _make_menu()
-        data = MenuPdfExporter().export_bytes(menu, {}, {})
-        assert isinstance(data, bytes)
-
-    def test_starts_with_pdf_magic(self) -> None:
-        menu = _make_menu()
-        data = MenuPdfExporter().export_bytes(menu, {}, {})
-        assert data[:4] == b"%PDF"
-
     def test_empty_menu_produces_valid_pdf(self) -> None:
         """A menu with no slots should still render without errors."""
         menu = _make_menu(slots=[])
@@ -119,26 +109,6 @@ class TestMenuPdfExporter:
         )
         assert data[:4] == b"%PDF"
 
-    def test_a4_and_a3_produce_valid_pdfs_with_different_page_sizes(self) -> None:
-        """Both A4 and A3 paper options must produce valid PDF output.
-
-        Note: PDF byte-stream lengths are not a reliable proxy for page size because
-        ReportLab may produce identical stream sizes for small amounts of content
-        regardless of page dimensions. We therefore only assert that both outputs
-        are valid PDFs; the separate a4/a3 validity tests cover each format individually.
-        """
-        slots = [_recipe_slot(i, _LUNCH_ID) for i in range(7)]
-        recipe_names = {i + 1: f"Рецепт {i + 1}" for i in range(7)}
-        menu_a4 = _make_menu(slots)
-        menu_a3 = _make_menu(slots)
-        data_a4 = MenuPdfExporter().export_bytes(
-            menu_a4, recipe_names, {}, paper="a4", meal_type_names=_MEAL_TYPE_NAMES
-        )
-        data_a3 = MenuPdfExporter().export_bytes(
-            menu_a3, recipe_names, {}, paper="a3", meal_type_names=_MEAL_TYPE_NAMES
-        )
-        assert data_a4[:4] == b"%PDF"
-        assert data_a3[:4] == b"%PDF"
 
     def test_paper_param_case_insensitive(self) -> None:
         menu = _make_menu()

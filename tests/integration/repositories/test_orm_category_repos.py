@@ -10,7 +10,7 @@ from backend.infrastructure.repositories.orm_recipe_category_repository import (
 
 def test_product_category_repo_returns_active(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    categories = repo.find_active()
+    categories = repo.find_active(1)
     names = [c.name for c in categories]
     assert "Сыпучие" in names
     assert "Молочные" in names
@@ -19,7 +19,7 @@ def test_product_category_repo_returns_active(conn) -> None:
 
 def test_product_category_repo_returns_id_name_tuples(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    categories = repo.find_active()
+    categories = repo.find_active(1)
     for cat in categories:
         assert isinstance(cat.id, int)
         assert isinstance(cat.name, str)
@@ -27,12 +27,12 @@ def test_product_category_repo_returns_id_name_tuples(conn) -> None:
 
 def test_product_category_repo_excludes_inactive(conn) -> None:
     conn.execute(text(
-        "INSERT INTO product_categories (name, active) VALUES ('Архив', 0)"
+        "INSERT INTO product_categories (user_id, name, active) VALUES (1, 'Архив', 0)"
     ))
     conn.commit()
 
     repo = OrmProductCategoryRepository(conn)
-    categories = repo.find_active()
+    categories = repo.find_active(1)
     names = [c.name for c in categories]
 
     assert "Архив" not in names
@@ -40,14 +40,14 @@ def test_product_category_repo_excludes_inactive(conn) -> None:
 
 def test_product_category_repo_sorted(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    categories = repo.find_active()
+    categories = repo.find_active(1)
     names = [c.name for c in categories]
     assert names == sorted(names)
 
 
 def test_recipe_category_repo_returns_active(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    categories = repo.find_active()
+    categories = repo.find_active(1)
     names = [c.name for c in categories]
     assert "Завтраки" in names
     assert "Основные" in names
@@ -56,7 +56,7 @@ def test_recipe_category_repo_returns_active(conn) -> None:
 
 def test_recipe_category_repo_returns_id_name_tuples(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    categories = repo.find_active()
+    categories = repo.find_active(1)
     for cat in categories:
         assert isinstance(cat.id, int)
         assert isinstance(cat.name, str)
@@ -64,12 +64,12 @@ def test_recipe_category_repo_returns_id_name_tuples(conn) -> None:
 
 def test_recipe_category_repo_excludes_inactive(conn) -> None:
     conn.execute(text(
-        "INSERT INTO recipe_categories (name, active) VALUES ('Старые', 0)"
+        "INSERT INTO recipe_categories (user_id, name, active) VALUES (1, 'Старые', 0)"
     ))
     conn.commit()
 
     repo = OrmRecipeCategoryRepository(conn)
-    categories = repo.find_active()
+    categories = repo.find_active(1)
     names = [c.name for c in categories]
 
     assert "Старые" not in names
@@ -77,7 +77,7 @@ def test_recipe_category_repo_excludes_inactive(conn) -> None:
 
 def test_recipe_category_repo_sorted(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    categories = repo.find_active()
+    categories = repo.find_active(1)
     names = [c.name for c in categories]
     assert names == sorted(names)
 
@@ -87,12 +87,12 @@ def test_recipe_category_repo_sorted(conn) -> None:
 
 def test_product_category_find_all_includes_inactive(conn) -> None:
     conn.execute(text(
-        "INSERT INTO product_categories (name, active) VALUES ('Архив', 0)"
+        "INSERT INTO product_categories (user_id, name, active) VALUES (1, 'Архив', 0)"
     ))
     conn.commit()
 
     repo = OrmProductCategoryRepository(conn)
-    categories = repo.find_all()
+    categories = repo.find_all(1)
     names = [c.name for c in categories]
     assert "Архив" in names
 
@@ -102,51 +102,51 @@ def test_product_category_find_all_includes_inactive(conn) -> None:
 
 def test_product_category_save_creates_new(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("Замороженные")
+    new_id = repo.save("Замороженные", user_id=1)
     assert isinstance(new_id, int)
-    names = [c.name for c in repo.find_active()]
+    names = [c.name for c in repo.find_active(1)]
     assert "Замороженные" in names
 
 
 def test_product_category_save_updates_existing(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("Тестовая")
-    repo.save("Тестовая (изм.)", new_id)
-    names = [c.name for c in repo.find_active()]
+    new_id = repo.save("Тестовая", user_id=1)
+    repo.save("Тестовая (изм.)", new_id, user_id=1)
+    names = [c.name for c in repo.find_active(1)]
     assert "Тестовая (изм.)" in names
     assert "Тестовая" not in names
 
 
 def test_product_category_delete_makes_inactive(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("Удаляемая")
-    repo.delete(new_id)
-    active_names = [c.name for c in repo.find_active()]
+    new_id = repo.save("Удаляемая", user_id=1)
+    repo.delete(new_id, 1)
+    active_names = [c.name for c in repo.find_active(1)]
     assert "Удаляемая" not in active_names
 
-    all_names = [c.name for c in repo.find_all()]
+    all_names = [c.name for c in repo.find_all(1)]
     assert "Удаляемая" in all_names
 
 
 def test_product_category_hard_delete_removes_row(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("Удаляемая навсегда")
-    repo.hard_delete(new_id)
-    all_names = [c.name for c in repo.find_all()]
+    new_id = repo.save("Удаляемая навсегда", user_id=1)
+    repo.hard_delete(new_id, 1)
+    all_names = [c.name for c in repo.find_all(1)]
     assert "Удаляемая навсегда" not in all_names
 
 
 def test_product_category_hard_delete_removes_linked_products(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("С продуктами")
+    new_id = repo.save("С продуктами", user_id=1)
     conn.execute(
         text("INSERT INTO products (name, brand, supplier, category_id, recipe_unit, purchase_unit, user_id) "
              "VALUES ('Тест-продукт', '', '', :cat_id, 'g', 'kg', 1)"),
         {"cat_id": new_id},
     )
     conn.commit()
-    repo.hard_delete(new_id)
-    all_names = [c.name for c in repo.find_all()]
+    repo.hard_delete(new_id, 1)
+    all_names = [c.name for c in repo.find_all(1)]
     assert "С продуктами" not in all_names
     count = conn.execute(
         text("SELECT COUNT(*) FROM products WHERE category_id = :cat_id"),
@@ -159,7 +159,7 @@ def test_product_category_hard_delete_cascades_to_recipe_ingredients(conn) -> No
     """Hard-deleting a product category must also remove recipe_ingredients
     and menu_slots that reference the deleted products."""
     repo = OrmProductCategoryRepository(conn)
-    cat_id = repo.save("Каскад")
+    cat_id = repo.save("Каскад", user_id=1)
 
     # Create a product in this category
     conn.execute(
@@ -191,7 +191,7 @@ def test_product_category_hard_delete_cascades_to_recipe_ingredients(conn) -> No
     )
     conn.commit()
 
-    repo.hard_delete(cat_id)
+    repo.hard_delete(cat_id, 1)
 
     # Product gone
     assert conn.execute(
@@ -213,30 +213,30 @@ def test_product_category_hard_delete_cascades_to_recipe_ingredients(conn) -> No
 
 def test_product_category_is_used_false(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("Пустая")
-    assert repo.is_used(new_id) is False
+    new_id = repo.save("Пустая", user_id=1)
+    assert repo.is_used(new_id, 1) is False
 
 
 def test_product_category_is_used_true(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("С продуктами")
+    new_id = repo.save("С продуктами", user_id=1)
     conn.execute(
         text("INSERT INTO products (name, brand, supplier, category_id, recipe_unit, purchase_unit, user_id) "
              "VALUES ('Тест', '', '', :cat_id, 'g', 'kg', 1)"),
         {"cat_id": new_id},
     )
     conn.commit()
-    assert repo.is_used(new_id) is True
+    assert repo.is_used(new_id, 1) is True
 
 
 def test_recipe_category_find_all_includes_inactive(conn) -> None:
     conn.execute(text(
-        "INSERT INTO recipe_categories (name, active) VALUES ('Старые', 0)"
+        "INSERT INTO recipe_categories (user_id, name, active) VALUES (1, 'Старые', 0)"
     ))
     conn.commit()
 
     repo = OrmRecipeCategoryRepository(conn)
-    categories = repo.find_all()
+    categories = repo.find_all(1)
     names = [c.name for c in categories]
     assert "Старые" in names
 
@@ -246,50 +246,50 @@ def test_recipe_category_find_all_includes_inactive(conn) -> None:
 
 def test_recipe_category_save_creates_new(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("Выпечка")
+    new_id = repo.save("Выпечка", user_id=1)
     assert isinstance(new_id, int)
-    names = [c.name for c in repo.find_active()]
+    names = [c.name for c in repo.find_active(1)]
     assert "Выпечка" in names
 
 
 def test_recipe_category_save_updates_existing(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("Тестовая")
-    repo.save("Тестовая (изм.)", new_id)
-    names = [c.name for c in repo.find_active()]
+    new_id = repo.save("Тестовая", user_id=1)
+    repo.save("Тестовая (изм.)", new_id, user_id=1)
+    names = [c.name for c in repo.find_active(1)]
     assert "Тестовая (изм.)" in names
     assert "Тестовая" not in names
 
 
 def test_recipe_category_delete_makes_inactive(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("Удаляемая")
-    repo.delete(new_id)
-    active_names = [c.name for c in repo.find_active()]
+    new_id = repo.save("Удаляемая", user_id=1)
+    repo.delete(new_id, 1)
+    active_names = [c.name for c in repo.find_active(1)]
     assert "Удаляемая" not in active_names
 
-    all_names = [c.name for c in repo.find_all()]
+    all_names = [c.name for c in repo.find_all(1)]
     assert "Удаляемая" in all_names
 
 
 def test_recipe_category_hard_delete_removes_row(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("Удаляемая навсегда")
-    repo.hard_delete(new_id)
-    all_names = [c.name for c in repo.find_all()]
+    new_id = repo.save("Удаляемая навсегда", user_id=1)
+    repo.hard_delete(new_id, 1)
+    all_names = [c.name for c in repo.find_all(1)]
     assert "Удаляемая навсегда" not in all_names
 
 
 def test_recipe_category_hard_delete_removes_linked_recipes(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("С рецептами")
+    new_id = repo.save("С рецептами", user_id=1)
     conn.execute(
         text("INSERT INTO recipes (name, category_id, servings, user_id) VALUES ('Тест-рецепт', :cat_id, 1, 1)"),
         {"cat_id": new_id},
     )
     conn.commit()
-    repo.hard_delete(new_id)
-    all_names = [c.name for c in repo.find_all()]
+    repo.hard_delete(new_id, 1)
+    all_names = [c.name for c in repo.find_all(1)]
     assert "С рецептами" not in all_names
     count = conn.execute(
         text("SELECT COUNT(*) FROM recipes WHERE category_id = :cat_id"),
@@ -302,7 +302,7 @@ def test_recipe_category_hard_delete_cascades_to_menu_slots(conn) -> None:
     """Hard-deleting a recipe category must also remove recipe_ingredients,
     cooking_steps, and menu_slots that reference the deleted recipes."""
     repo = OrmRecipeCategoryRepository(conn)
-    cat_id = repo.save("Каскад-рец")
+    cat_id = repo.save("Каскад-рец", user_id=1)
 
     # Create a recipe in this category with ingredient and step
     prod_cat_id = conn.execute(
@@ -337,7 +337,7 @@ def test_recipe_category_hard_delete_cascades_to_menu_slots(conn) -> None:
     )
     conn.commit()
 
-    repo.hard_delete(cat_id)
+    repo.hard_delete(cat_id, 1)
 
     # Recipe gone
     assert conn.execute(
@@ -363,40 +363,40 @@ def test_recipe_category_hard_delete_cascades_to_menu_slots(conn) -> None:
 
 def test_recipe_category_is_used_false(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("Пустая")
-    assert repo.is_used(new_id) is False
+    new_id = repo.save("Пустая", user_id=1)
+    assert repo.is_used(new_id, 1) is False
 
 
 def test_recipe_category_is_used_true(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("С рецептами")
+    new_id = repo.save("С рецептами", user_id=1)
     conn.execute(
         text("INSERT INTO recipes (name, category_id, servings, user_id) VALUES ('Тест', :cat_id, 1, 1)"),
         {"cat_id": new_id},
     )
     conn.commit()
-    assert repo.is_used(new_id) is True
+    assert repo.is_used(new_id, 1) is True
 
 
 def test_product_category_activate_restores_hidden(conn) -> None:
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("Скрытая")
-    repo.delete(new_id)
-    assert "Скрытая" not in [c.name for c in repo.find_active()]
+    new_id = repo.save("Скрытая", user_id=1)
+    repo.delete(new_id, 1)
+    assert "Скрытая" not in [c.name for c in repo.find_active(1)]
 
-    repo.activate(new_id)
-    active_names = [c.name for c in repo.find_active()]
+    repo.activate(new_id, 1)
+    active_names = [c.name for c in repo.find_active(1)]
     assert "Скрытая" in active_names
 
 
 def test_recipe_category_activate_restores_hidden(conn) -> None:
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("Скрытая")
-    repo.delete(new_id)
-    assert "Скрытая" not in [c.name for c in repo.find_active()]
+    new_id = repo.save("Скрытая", user_id=1)
+    repo.delete(new_id, 1)
+    assert "Скрытая" not in [c.name for c in repo.find_active(1)]
 
-    repo.activate(new_id)
-    active_names = [c.name for c in repo.find_active()]
+    repo.activate(new_id, 1)
+    active_names = [c.name for c in repo.find_active(1)]
     assert "Скрытая" in active_names
 
 
@@ -406,8 +406,8 @@ def test_recipe_category_activate_restores_hidden(conn) -> None:
 def test_product_category_move_and_delete(conn) -> None:
     """Products are moved to the target category, then the source category is deleted."""
     repo = OrmProductCategoryRepository(conn)
-    from_id = repo.save("Переносимая")
-    to_id = repo.save("Целевая")
+    from_id = repo.save("Переносимая", user_id=1)
+    to_id = repo.save("Целевая", user_id=1)
 
     conn.execute(
         text(
@@ -425,10 +425,10 @@ def test_product_category_move_and_delete(conn) -> None:
     )
     conn.commit()
 
-    repo.move_and_delete(from_id, to_id)
+    repo.move_and_delete(from_id, to_id, 1)
 
     # Source category must be gone
-    all_names = [c.name for c in repo.find_all()]
+    all_names = [c.name for c in repo.find_all(1)]
     assert "Переносимая" not in all_names
 
     # Both products are now in the target category
@@ -453,23 +453,23 @@ def test_product_category_move_and_delete_rollback_on_invalid_target(conn) -> No
     from backend.domain.exceptions import AppError
 
     repo = OrmProductCategoryRepository(conn)
-    from_id = repo.save("Источник")
+    from_id = repo.save("Источник", user_id=1)
 
     non_existent_to_id = 999999
 
     with pytest.raises(AppError):
-        repo.move_and_delete(from_id, non_existent_to_id)
+        repo.move_and_delete(from_id, non_existent_to_id, 1)
 
     # Source category must still exist
-    all_names = [c.name for c in repo.find_all()]
+    all_names = [c.name for c in repo.find_all(1)]
     assert "Источник" in all_names
 
 
 def test_recipe_category_move_and_delete(conn) -> None:
     """Recipes are moved to the target category, then the source category is deleted."""
     repo = OrmRecipeCategoryRepository(conn)
-    from_id = repo.save("Источник рецептов")
-    to_id = repo.save("Цель рецептов")
+    from_id = repo.save("Источник рецептов", user_id=1)
+    to_id = repo.save("Цель рецептов", user_id=1)
 
     conn.execute(
         text(
@@ -487,10 +487,10 @@ def test_recipe_category_move_and_delete(conn) -> None:
     )
     conn.commit()
 
-    repo.move_and_delete(from_id, to_id)
+    repo.move_and_delete(from_id, to_id, 1)
 
     # Source category must be gone
-    all_names = [c.name for c in repo.find_all()]
+    all_names = [c.name for c in repo.find_all(1)]
     assert "Источник рецептов" not in all_names
 
     # Both recipes are now in the target category
@@ -515,37 +515,64 @@ def test_recipe_category_move_and_delete_rollback_on_invalid_target(conn) -> Non
     from backend.domain.exceptions import AppError
 
     repo = OrmRecipeCategoryRepository(conn)
-    from_id = repo.save("Источник рец.")
+    from_id = repo.save("Источник рец.", user_id=1)
 
     non_existent_to_id = 999999
 
     with pytest.raises(AppError):
-        repo.move_and_delete(from_id, non_existent_to_id)
+        repo.move_and_delete(from_id, non_existent_to_id, 1)
 
     # Source category must still exist
-    all_names = [c.name for c in repo.find_all()]
+    all_names = [c.name for c in repo.find_all(1)]
     assert "Источник рец." in all_names
 
 
 def test_product_category_save_reactivates_on_edit(conn) -> None:
     """Editing an inactive category should reactivate it."""
     repo = OrmProductCategoryRepository(conn)
-    new_id = repo.save("Скрытая")
-    repo.delete(new_id)
-    assert "Скрытая" not in [c.name for c in repo.find_active()]
+    new_id = repo.save("Скрытая", user_id=1)
+    repo.delete(new_id, 1)
+    assert "Скрытая" not in [c.name for c in repo.find_active(1)]
 
-    repo.save("Скрытая (восст.)", new_id)
-    active_names = [c.name for c in repo.find_active()]
+    repo.save("Скрытая (восст.)", new_id, user_id=1)
+    active_names = [c.name for c in repo.find_active(1)]
     assert "Скрытая (восст.)" in active_names
 
 
 def test_recipe_category_save_reactivates_on_edit(conn) -> None:
     """Editing an inactive category should reactivate it."""
     repo = OrmRecipeCategoryRepository(conn)
-    new_id = repo.save("Скрытая")
-    repo.delete(new_id)
-    assert "Скрытая" not in [c.name for c in repo.find_active()]
+    new_id = repo.save("Скрытая", user_id=1)
+    repo.delete(new_id, 1)
+    assert "Скрытая" not in [c.name for c in repo.find_active(1)]
 
-    repo.save("Скрытая (восст.)", new_id)
-    active_names = [c.name for c in repo.find_active()]
+    repo.save("Скрытая (восст.)", new_id, user_id=1)
+    active_names = [c.name for c in repo.find_active(1)]
     assert "Скрытая (восст.)" in active_names
+
+
+def test_hard_delete_preserves_legacy_foreign_menu_slot(conn, second_owner):
+    import pytest
+
+    from backend.domain.exceptions import DomainError
+
+    repo = OrmProductCategoryRepository(conn)
+    category = repo.save("Personal", user_id=1)
+    conn.execute(
+        text("INSERT INTO products (id,user_id,name,category_id,recipe_unit,purchase_unit) VALUES (100,1,'Product',:category,'g','g')"),
+        {"category": category},
+    )
+    conn.execute(
+        text("INSERT INTO menus (id,user_id,name) VALUES (100,:owner,'Foreign menu')"),
+        {"owner": second_owner},
+    )
+    conn.execute(
+        text("INSERT INTO menu_slots (id,menu_id,day,meal_type_id,product_id,quantity,unit) VALUES (100,100,0,1,100,10,'g')")
+    )
+    conn.commit()
+
+    with pytest.raises(DomainError):
+        repo.hard_delete(category, 1)
+
+    assert conn.execute(text("SELECT product_id FROM menu_slots WHERE id=100")).scalar_one() == 100
+    assert repo.is_used(category, 1)

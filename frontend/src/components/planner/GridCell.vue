@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { accountSessionSignal } from '@/api/accountSession'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Sortable from 'sortablejs'
 import type { CellItem, FamilyMember, MenuSlot, MergedSlotView } from '@/api/types'
@@ -111,6 +112,7 @@ function categoryColor(item: CellItem): string | null {
 const { open: openContextMenu, close: closeContextMenu } = useContextMenu()
 const { hasClipboard, copySlot, pasteSlot } = usePlannerClipboard()
 const menuStore = useMenuStore()
+const session = accountSessionSignal()
 
 function buildContextMenuItems() {
   return [
@@ -128,8 +130,9 @@ function buildContextMenuItems() {
         const items = pasteSlot()
         if (!items || items.length === 0) return
         await menuStore.ensureMenuSelected()
+        if (session.aborted) return
         await menuStore.mergeItemsIntoSlot(props.day, props.mealTypeId, items)
-        closeContextMenu()
+        if (!session.aborted) closeContextMenu()
       },
     },
   ]
@@ -296,7 +299,10 @@ function initSortable() {
 }
 
 onMounted(initSortable)
-onUnmounted(() => sortable?.destroy())
+onUnmounted(() => {
+  onTouchEnd()
+  sortable?.destroy()
+})
 
 watch(
   () => rawCellSlots.value.length,

@@ -8,8 +8,10 @@ from backend.domain.value_objects.types import FamilyMemberId, PreferenceId, Use
 from backend.infrastructure.database.models import (
     FamilyMemberPreferenceRow,
     FamilyMemberRow,
+    PreferenceRow,
 )
 from backend.infrastructure.repositories.base import BaseOrmRepository
+from backend.infrastructure.repositories.ownership import require_owned
 
 
 class OrmFamilyMemberRepository(
@@ -20,6 +22,11 @@ class OrmFamilyMemberRepository(
 
     def __init__(self, session: Session) -> None:
         super().__init__(session)
+
+    def save(self, member: FamilyMember) -> FamilyMember:
+        for preference_id in member.preference_ids:
+            require_owned(self._session, PreferenceRow, preference_id, member.user_id)
+        return super().save(member)
 
     def _get_entity_id(self, entity: FamilyMember) -> int:
         return entity.id

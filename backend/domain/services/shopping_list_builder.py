@@ -102,13 +102,15 @@ class ShoppingListBuilder:
                 else:
                     aggregated[pid] = qty
 
-        return self._aggregated_to_shopping_list(aggregated)
+        return self._aggregated_to_shopping_list(aggregated, menu.user_id)
 
     def _aggregated_to_shopping_list(
-        self, aggregated: dict[ProductId, Quantity]
+        self, aggregated: dict[ProductId, Quantity], user_id: int
     ) -> ShoppingList:
         """Convert an aggregated product→quantity map into a ShoppingList."""
-        category_map = {c.id: c.name for c in self._product_category_repo.find_active()}
+        category_map = {
+            c.id: c.name for c in self._product_category_repo.find_active(user_id)
+        }
 
         items: list[ShoppingListItem] = []
         for product_id, qty in aggregated.items():
@@ -301,7 +303,7 @@ class ShoppingListBuilder:
                 else:
                     aggregated[pid] = qty
 
-        return self._aggregated_to_shopping_list(aggregated)
+        return self._aggregated_to_shopping_list(aggregated, menu.user_id)
 
     def resolve_recipe_ingredients_tree(
         self,

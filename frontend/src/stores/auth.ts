@@ -1,7 +1,21 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import {
+  accountSessionSignal, accountTokens, endAccountSession, readAccountToken,
+  refreshAccount, revokeAccountRefresh, saveAccountLogin, syncAccountSession,
+} from '@/api/accountSession'
 import * as authApi from '@/api/auth'
 import type { LoginRequest, RegisterRequest, UserResponse } from '@/api/types'
+import { clearContextMenu } from '@/composables/useContextMenu'
+import { clearPlannerClipboard } from '@/composables/usePlannerClipboard'
+import { useCategoryStore } from './categories'
+import { useFamilyStore } from './family'
+import { useMealTypeStore } from './mealTypes'
+import { useMenuStore } from './menus'
+import { usePreferencesStore } from './preferences'
+import { useProductStore } from './products'
+import { useRecipeStore } from './recipes'
+import { useShoppingListStore } from './shoppingList'
 import { useToastStore } from './toast'
 
 const ACCESS_TOKEN_KEY = 'access_token'
@@ -9,79 +23,89 @@ const REFRESH_TOKEN_KEY = 'refresh_token'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserResponse | null>(null)
-  const accessToken = ref(localStorage.getItem(ACCESS_TOKEN_KEY) || '')
-  const refreshToken = ref(localStorage.getItem(REFRESH_TOKEN_KEY) || '')
-
+  const accessToken = ref(readAccountToken(ACCESS_TOKEN_KEY) || '')
+  const refreshToken = ref(readAccountToken(REFRESH_TOKEN_KEY) || '')
   const isAuthenticated = computed(() => !!accessToken.value)
 
-  function saveTokens(access: string, refresh: string) {
-    accessToken.value = access
-    refreshToken.value = refresh
-    localStorage.setItem(ACCESS_TOKEN_KEY, access)
-    localStorage.setItem(REFRESH_TOKEN_KEY, refresh)
-  }
+  const accountStores = [
+    useCategoryStore(), useFamilyStore(), useMealTypeStore(), useMenuStore(), usePreferencesStore(),
+    useProductStore(), useRecipeStore(), useShoppingListStore(), useToastStore(),
+  ]
 
-  function clearTokens() {
+  watch(accountSessionSignal, () => {
     accessToken.value = ''
     refreshToken.value = ''
     user.value = null
-    localStorage.removeItem(ACCESS_TOKEN_KEY)
-    localStorage.removeItem(REFRESH_TOKEN_KEY)
-  }
+    for (const store of accountStores) store.reset()
+    clearContextMenu()
+    clearPlannerClipboard()
+  }, { flush: 'sync' })
+
+  watch(accountTokens, (pair) => {
+    accessToken.value = pair?.access_token ?? ''
+    refreshToken.value = pair?.refresh_token ?? ''
+  }, { flush: 'sync' })
 
   async function register(data: RegisterRequest) {
+    const session = accountSessionSignal()
     const created = await authApi.register(data)
+    syncAccountSession()
+    session.throwIfAborted()
     useToastStore().show('Регистрация успешна! Войдите в аккаунт.', 'success')
     return created
   }
 
   async function login(data: LoginRequest) {
+    endAccountSession()
+    const session = accountSessionSignal()
     const tokens = await authApi.login(data)
-    saveTokens(tokens.access_token, tokens.refresh_token)
-    await fetchUser()
-  }
-
-  async function refresh(): Promise<boolean> {
-    if (!refreshToken.value) return false
+    syncAccountSession()
+    session.throwIfAborted()
+    saveAccountLogin(tokens)
     try {
-      const tokens = await authApi.refreshTokens({
-        refresh_token: refreshToken.value,
-      })
-      saveTokens(tokens.access_token, tokens.refresh_token)
-      return true
-    } catch {
-      clearTokens()
-      return false
+      await fetchUser()
+      syncAccountSession()
+      session.throwIfAborted()
+    } catch (error) {
+      if (!session.aborted) endAccountSession()
+      throw error
     }
   }
 
   async function fetchUser() {
-    if (!accessToken.value) return
+    if (!syncAccountSession() || !accessToken.value) return
+    const session = accountSessionSignal()
     try {
-      user.value = await authApi.getMe(accessToken.value)
-    } catch {
-      user.value = null
+      const profile = await authApi.getMe(accessToken.value)
+      if (syncAccountSession() && !session.aborted) user.value = profile
+    } catch (error) {
+      if (!session.aborted) user.value = null
+      throw error
     }
   }
 
   async function logout() {
-    if (refreshToken.value) {
-      try {
-        await authApi.logout({ refresh_token: refreshToken.value })
-      } catch {
-        /* ignore logout errors */
-      }
-    }
-    clearTokens()
+    const token = readAccountToken(REFRESH_TOKEN_KEY)
+    if (!syncAccountSession()) return
+    endAccountSession()
+    if (token) await revokeAccountRefresh(token)
   }
 
   async function init() {
-    if (!accessToken.value) return
+    if (!syncAccountSession() || !accessToken.value) return
+    const session = accountSessionSignal()
+    try {
+      await fetchUser()
+      return
+    } catch {
+      if (session.aborted) return
+    }
+    const refreshed = await refreshAccount()
+    if (!refreshed || session.aborted) return
     try {
       await fetchUser()
     } catch {
-      const ok = await refresh()
-      if (ok) await fetchUser()
+      if (!session.aborted) endAccountSession()
     }
   }
 
@@ -92,7 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     register,
     login,
-    refresh,
+    refresh: refreshAccount,
     fetchUser,
     logout,
     init,

@@ -1,0 +1,516 @@
+"""Production app/lifespan/container, without mock use cases or auth overrides."""
+
+from unicodedata import normalize
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+
+from backend.api.main import app
+from backend.application.use_cases.auth import UpdateProfileData
+from backend.composition import ApplicationContainer
+from backend.infrastructure.auth.bcrypt_password_hasher import BcryptPasswordHasher
+
+
+@pytest.fixture
+def http_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'http.sqlite'}")
+    monkeypatch.setenv("JWT_SECRET_KEY", "audit-http-test-secret-key-at-least-32-bytes")
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        "",
+        "not-an-email",
+        "@example.com",
+        "alice@",
+        "alice smith@example.com",
+        "alice@example .com",
+        " alice@example.com",
+        "alice@example.com\n",
+        "alice@@example.com",
+        "alice..smith@example.com",
+        "alice@-example.com",
+    ],
+)
+def test_registration_rejects_invalid_email_without_creating_records(
+    http_client, email
+):
+    response = http_client.post(
+        "/api/auth/register", json={"email": email, "password": "Password123!"}
+    )
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"][0]["loc"] == ["body", "email"]
+    with app.state.database.engine.connect() as connection:
+        for table in (
+            "users",
+            "family_members",
+            "meal_types",
+            "product_categories",
+            "recipe_categories",
+        ):
+            assert (
+                connection.execute(text(f"SELECT count(*) FROM {table}")).scalar() == 0
+            )
+
+
+def test_registration_preserves_email_case_and_duplicate_response(http_client):
+    for email in ("Alice.Smith+menu@Example.COM", "alice.smith+menu@example.com"):
+        body = {"email": email, "password": "Password123!"}
+        created = http_client.post("/api/auth/register", json=body)
+        assert created.status_code == 201, created.text
+        assert created.json()["email"] == email
+        duplicate = http_client.post("/api/auth/register", json=body)
+        assert duplicate.status_code == 409, duplicate.text
+        assert (
+            duplicate.json()["detail"] == f"Пользователь с email {email} уже существует"
+        )
+
+
+def test_login_accepts_preexisting_legacy_email(http_client):
+    email = "not-an-email"
+    password = "Password123!"
+    with app.state.database.engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (email, nickname, hashed_password, created_at) "
+                "VALUES (:email, 'legacy', :hashed_password, CURRENT_TIMESTAMP)"
+            ),
+            {"email": email, "hashed_password": BcryptPasswordHasher().hash(password)},
+        )
+    pair = http_client.post(
+        "/api/auth/login", json={"email": email, "password": password}
+    )
+    assert pair.status_code == 200, pair.text
+    assert pair.json()["token_type"] == "bearer"
+    headers = {"Authorization": f"Bearer {pair.json()['access_token']}"}
+    assert http_client.get("/api/auth/me", headers=headers).json()["email"] == email
+
+
+def register_login(client, email):
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": "Password123!",
+            "nickname": email.split("@")[0],
+        },
+    )
+    assert response.status_code == 201, response.text
+    assert "hash" not in response.text.lower()
+    pair = client.post(
+        "/api/auth/login", json={"email": email, "password": "Password123!"}
+    )
+    assert pair.status_code == 200, pair.text
+    return {"Authorization": f"Bearer {pair.json()['access_token']}"}
+
+
+def active_category_id(client, kind, headers):
+    response = client.get(f"/api/{kind}/categories", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()[0]["id"]
+
+
+def test_real_http_register_write_read_calculate_and_error(http_client):
+    c = http_client
+    assert c.get("/api/products").status_code == 401
+    headers = register_login(c, "alice@example.com")
+    assert c.get("/api/auth/me", headers=headers).json()["email"] == "alice@example.com"
+    assert "hash" not in c.get("/api/auth/me", headers=headers).text.lower()
+    bad = c.post(
+        "/api/auth/login", json={"email": "alice@example.com", "password": "wrong"}
+    )
+    assert bad.status_code == 401 and "access_token" not in bad.json()
+    assert bad.headers["www-authenticate"] == "Bearer"
+    product = c.post(
+        "/api/products",
+        headers=headers,
+        json={
+            "name": "Flour",
+            "category_id": active_category_id(c, "products", headers),
+            "recipe_unit": "g",
+            "purchase_unit": "kg",
+            "price_amount": "80",
+            "conversion_factor": 1000,
+        },
+    )
+    assert product.status_code == 201, product.text
+    recipe = c.post(
+        "/api/recipes",
+        headers=headers,
+        json={
+            "name": "Bread",
+            "category_id": active_category_id(c, "recipes", headers),
+            "servings": 2,
+            "ingredients": [
+                {
+                    "product_id": product.json()["id"],
+                    "quantity_amount": 200,
+                    "quantity_unit": "g",
+                }
+            ],
+        },
+    )
+    assert recipe.status_code == 201, recipe.text
+    rid = recipe.json()["id"]
+    loaded = c.get(f"/api/recipes/{rid}", headers=headers)
+    assert loaded.status_code == 200
+    assert loaded.json()["cost_per_portion"] == pytest.approx(8)
+    assert loaded.json()["ingredients"][0]["quantity_amount"] == 200
+    assert c.get(f"/api/recipes/{rid}", headers=headers).json() == loaded.json()
+    assert c.get("/api/recipes/999999", headers=headers).status_code == 404
+    other = register_login(c, "bob@example.com")
+    assert c.get(f"/api/recipes/{rid}", headers=other).status_code == 404
+    assert c.get("/api/recipes", headers=other).json()["items"] == []
+
+
+@pytest.mark.parametrize("route", ["recipes", "recipes/cost-preview"])
+def test_http_rejects_foreign_product_links(http_client, route):
+    c = http_client
+    owner = register_login(c, "alice@example.com")
+    product = c.post(
+        "/api/products",
+        headers=owner,
+        json={
+            "name": "Secret",
+            "category_id": active_category_id(c, "products", owner),
+            "recipe_unit": "g",
+            "purchase_unit": "kg",
+            "price_amount": "80",
+            "conversion_factor": 1000,
+        },
+    ).json()
+    other = register_login(c, "bob@example.com")
+    body = {
+        "name": "Attempt",
+        "category_id": active_category_id(c, "recipes", other),
+        "servings": 2,
+        "ingredients": [
+            {"product_id": product["id"], "quantity_amount": 200, "quantity_unit": "g"}
+        ],
+    }
+    response = c.post(f"/api/{route}", headers=other, json=body)
+    assert response.status_code in (404, 422), response.text
+    assert c.get("/api/recipes", headers=other).json()["items"] == []
+
+
+@pytest.mark.parametrize(
+    "foreign_field", ["product_id", "recipe_id", "meal_type_id", "member_ids"]
+)
+def test_http_menu_rejects_foreign_nested_links(http_client, foreign_field):
+    c = http_client
+    a = register_login(c, "alice@example.com")
+    b = register_login(c, "bob@example.com")
+    foreign_product = c.post(
+        "/api/products",
+        headers=a,
+        json={
+            "name": "Secret",
+            "category_id": active_category_id(c, "products", a),
+            "recipe_unit": "g",
+            "purchase_unit": "kg",
+            "price_amount": "80",
+            "conversion_factor": 1000,
+        },
+    ).json()["id"]
+    foreign_recipe = c.post(
+        "/api/recipes",
+        headers=a,
+        json={
+            "name": "Secret recipe",
+            "category_id": active_category_id(c, "recipes", a),
+            "servings": 2,
+        },
+    ).json()["id"]
+    own_recipe = c.post(
+        "/api/recipes",
+        headers=b,
+        json={
+            "name": "Own recipe",
+            "category_id": active_category_id(c, "recipes", b),
+            "servings": 2,
+        },
+    ).json()["id"]
+    own_meal = c.get("/api/meal-types", headers=b).json()[0]["id"]
+    foreign_meal = c.get("/api/meal-types", headers=a).json()[0]["id"]
+    foreign_member = c.get("/api/family-members", headers=a).json()[0]["id"]
+    menu = c.post("/api/menus", headers=b, json={"name": "Own menu"}).json()["id"]
+    slot = {"day": 0, "meal_type_id": own_meal, "recipe_id": own_recipe}
+    if foreign_field == "product_id":
+        slot.pop("recipe_id")
+        slot.update(product_id=foreign_product, quantity=100, unit="g")
+    elif foreign_field == "recipe_id":
+        slot["recipe_id"] = foreign_recipe
+    elif foreign_field == "meal_type_id":
+        slot["meal_type_id"] = foreign_meal
+    else:
+        slot["member_ids"] = [foreign_member]
+    response = c.post(f"/api/menus/{menu}/slots", headers=b, json=slot)
+    assert response.status_code in (404, 422), response.text
+    assert c.get(f"/api/menus/{menu}", headers=b).json()["slots"] == []
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_http_recipe_rejects_foreign_subrecipe(http_client, preview):
+    c = http_client
+    a = register_login(c, "alice@example.com")
+    rid = c.post(
+        "/api/recipes",
+        headers=a,
+        json={
+            "name": "Secret recipe",
+            "category_id": active_category_id(c, "recipes", a),
+            "servings": 2,
+        },
+    ).json()["id"]
+    b = register_login(c, "bob@example.com")
+    route = "/api/recipes/cost-preview" if preview else "/api/recipes"
+    response = c.post(
+        route,
+        headers=b,
+        json={
+            "name": "Attempt",
+            "category_id": active_category_id(c, "recipes", b),
+            "servings": 2,
+            "ingredients": [
+                {"sub_recipe_id": rid, "quantity_amount": 1, "quantity_unit": "serv"}
+            ],
+        },
+    )
+    assert response.status_code in (404, 422), response.text
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"password": "Replacement123!"},
+        {"password": None},
+        {"nickname": "Changed", "password": "Replacement123!"},
+    ],
+)
+def test_profile_rejects_password_without_changes(http_client, body):
+    client = http_client
+    email = "alice@example.com"
+    headers = register_login(client, email)
+
+    response = client.patch("/api/auth/me", headers=headers, json=body)
+
+    assert response.status_code == 422
+    assert client.get("/api/auth/me", headers=headers).json()["nickname"] == "alice"
+    for password, expected in (("Password123!", 200), ("Replacement123!", 401)):
+        login = client.post(
+            "/api/auth/login", json={"email": email, "password": password}
+        )
+        assert login.status_code == expected
+
+
+def test_password_change_requires_current_password(http_client):
+    client = http_client
+    email = "alice@example.com"
+    headers = register_login(client, email)
+    new_password = "Replacement123!"
+
+    for current_password, status, old_login, new_login in (
+        ("wrong", 400, 200, 401),
+        ("Password123!", 204, 401, 200),
+    ):
+        response = client.post(
+            "/api/auth/me/password",
+            headers=headers,
+            json={"current_password": current_password, "new_password": new_password},
+        )
+        assert response.status_code == status
+        for password, expected in (
+            ("Password123!", old_login),
+            (new_password, new_login),
+        ):
+            login = client.post(
+                "/api/auth/login", json={"email": email, "password": password}
+            )
+            assert login.status_code == expected
+
+
+def test_openapi_profile_patch_accepts_nickname_without_password(http_client):
+    spec = http_client.get("/openapi.json").json()
+    patch = spec["paths"]["/api/auth/me"]["patch"]
+    ref = patch["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    schema = spec["components"]["schemas"][ref.split("/")[-1]]
+    assert set(schema["properties"]) == {"nickname"}
+    assert schema["not"] == {"required": ["password"]}
+    assert "422" in patch["responses"]
+
+
+def test_nickname_update_preserves_password_changed_after_profile_read(http_client):
+    client = http_client
+    email = "alice@example.com"
+    headers = register_login(client, email)
+    database = app.state.database
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with database.sessions() as session:
+        container = ApplicationContainer(session, database.jwt_secret)
+        stale_user = container.get_current_user.execute(token)
+
+    response = client.post(
+        "/api/auth/me/password",
+        headers=headers,
+        json={"current_password": "Password123!", "new_password": "Replacement123!"},
+    )
+    assert response.status_code == 204
+
+    with database.sessions() as session:
+        container = ApplicationContainer(session, database.jwt_secret)
+        updated = container.update_profile.execute(
+            stale_user, UpdateProfileData(nickname="Changed")
+        )
+    assert updated.nickname == "Changed"
+    login = client.post(
+        "/api/auth/login", json={"email": email, "password": "Replacement123!"}
+    )
+    assert login.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "password, accepted",
+    [
+        pytest.param("", False, id="empty"),
+        pytest.param("🔒" * 11, False, id="11-characters"),
+        pytest.param("🔒" * 12, True, id="12-characters"),
+        pytest.param("a" * 72, True, id="72-ascii-bytes"),
+        pytest.param("a" * 73, False, id="73-ascii-bytes"),
+        pytest.param("🔒" * 18, True, id="72-utf8-bytes"),
+        pytest.param("🔒" * 18 + "a", False, id="73-utf8-bytes"),
+        pytest.param(" e\u0301Password! ", True, id="preserve-input"),
+    ],
+)
+def test_password_policy_for_registration_and_change(
+    http_client, caplog, password, accepted
+):
+    client = http_client
+    email = "existing@example.com"
+    headers = register_login(client, email)
+    registered_email = "new@example.com"
+    registered = client.post(
+        "/api/auth/register", json={"email": registered_email, "password": password}
+    )
+    assert registered.status_code == (201 if accepted else 422)
+    changed = client.post(
+        "/api/auth/me/password",
+        headers=headers,
+        json={"current_password": "Password123!", "new_password": password},
+    )
+    assert changed.status_code == (204 if accepted else 422)
+    with app.state.database.engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM users")).scalar() == (
+            2 if accepted else 1
+        )
+    old_login = client.post(
+        "/api/auth/login", json={"email": email, "password": "Password123!"}
+    )
+    assert old_login.status_code == (401 if accepted else 200)
+
+    if accepted:
+        for address in (email, registered_email):
+            login = client.post(
+                "/api/auth/login", json={"email": address, "password": password}
+            )
+            assert login.status_code == 200
+    elif password:
+        assert password not in registered.text
+        assert password not in changed.text
+        assert password not in caplog.text
+
+    alternatives = {password.strip(), normalize("NFC", password)} - {password}
+    for alternative in alternatives:
+        login = client.post(
+            "/api/auth/login", json={"email": email, "password": alternative}
+        )
+        assert login.status_code == 401
+
+
+def test_password_policy_for_existing_credentials(http_client):
+    client = http_client
+    email = "legacy-short@example.com"
+    short_password = "old"
+    with app.state.database.engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (email, nickname, hashed_password, created_at) "
+                "VALUES (:email, 'legacy', :hashed_password, CURRENT_TIMESTAMP)"
+            ),
+            {
+                "email": email,
+                "hashed_password": BcryptPasswordHasher().hash(short_password),
+            },
+        )
+    login = client.post(
+        "/api/auth/login", json={"email": email, "password": short_password}
+    )
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    long_password = "🔒" * 18 + "a"
+    assert (
+        client.post(
+            "/api/auth/login", json={"email": email, "password": long_password}
+        ).status_code
+        == 422
+    )
+    for current, status in ((long_password, 422), (short_password, 204)):
+        assert (
+            client.post(
+                "/api/auth/me/password",
+                headers=headers,
+                json={"current_password": current, "new_password": "Replacement123!"},
+            ).status_code
+            == status
+        )
+
+
+def test_password_policy_does_not_echo_invalid_request_input(http_client, caplog):
+    secret = "private-password-value"
+    for path, body in (
+        ("/api/auth/login", {"password": secret}),
+        ("/api/auth/register", {"email": "test@example.com", "password": [secret]}),
+    ):
+        response = http_client.post(path, json=body)
+        assert response.status_code == 422
+        assert secret not in response.text
+    assert secret not in caplog.text
+
+
+@pytest.mark.parametrize("valid_password", [True, False])
+def test_password_change_refresh_sessions(http_client, valid_password):
+    client = http_client
+    alice = "alice@example.com"
+    headers = register_login(client, alice)
+    register_login(client, "bob@example.com")
+
+    def login(email, password="Password123!"):
+        return client.post(
+            "/api/auth/login", json={"email": email, "password": password}
+        )
+
+    sessions = [login(alice), login(alice), login("bob@example.com")]
+    assert all(session.status_code == 200 for session in sessions)
+    response = client.post(
+        "/api/auth/me/password",
+        headers=headers,
+        json={
+            "current_password": "Password123!" if valid_password else "Incorrect123!",
+            "new_password": "Replacement123!",
+        },
+    )
+    assert response.status_code == (204 if valid_password else 400)
+    assert client.get("/api/auth/me", headers=headers).status_code == 200
+    own_status = 401 if valid_password else 200
+    for session, expected in zip(sessions, (own_status, own_status, 200), strict=True):
+        response = client.post(
+            "/api/auth/refresh", json={"refresh_token": session.json()["refresh_token"]}
+        )
+        assert response.status_code == expected
+    assert login(alice).status_code == (401 if valid_password else 200)
+    assert login(alice, "Replacement123!").status_code == (
+        200 if valid_password else 401
+    )

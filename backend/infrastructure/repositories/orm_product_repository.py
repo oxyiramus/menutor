@@ -8,8 +8,13 @@ from backend.domain.exceptions import DomainError
 from backend.domain.ports.product_repository import ProductRepository
 from backend.domain.value_objects.money import Money
 from backend.domain.value_objects.types import ProductCategoryId, ProductId, UserId
-from backend.infrastructure.database.models import ProductRow, RecipeIngredientRow
+from backend.infrastructure.database.models import (
+    ProductCategoryRow,
+    ProductRow,
+    RecipeIngredientRow,
+)
 from backend.infrastructure.repositories.base import BaseOrmRepository
+from backend.infrastructure.repositories.ownership import require_owned
 
 
 class OrmProductRepository(
@@ -26,6 +31,12 @@ class OrmProductRepository(
 
     def _wrap_id(self, raw_id: int) -> ProductId:
         return ProductId(raw_id)
+
+    def save(self, entity: Product) -> Product:
+        require_owned(
+            self._session, ProductCategoryRow, entity.category_id, entity.user_id
+        )
+        return super().save(entity)
 
     def _make_new_row(self, entity: Product) -> ProductRow:
         return ProductRow(

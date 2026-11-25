@@ -18,7 +18,11 @@ from backend.infrastructure.database.models import (
     PreferenceProductRow,
     PreferenceRecipeCategoryRow,
     PreferenceRow,
+    ProductCategoryRow,
+    ProductRow,
+    RecipeCategoryRow,
 )
+from backend.infrastructure.repositories.ownership import require_owned
 
 
 class OrmPreferenceRepository(PreferenceRepository):
@@ -68,6 +72,16 @@ class OrmPreferenceRepository(PreferenceRepository):
         return self._row_to_entity(row)
 
     def save(self, preference: Preference) -> Preference:
+        for category_id in preference.category_ids:
+            require_owned(
+                self._session, ProductCategoryRow, category_id, preference.user_id
+            )
+        for recipe_category_id in preference.recipe_category_ids:
+            require_owned(
+                self._session, RecipeCategoryRow, recipe_category_id, preference.user_id
+            )
+        for product_id in preference.product_ids:
+            require_owned(self._session, ProductRow, product_id, preference.user_id)
         row: PreferenceRow | None
         if int(preference.id) == 0:
             row = self._make_new_row(preference)
@@ -89,6 +103,7 @@ class OrmPreferenceRepository(PreferenceRepository):
         if not ids:
             return
         int_ids = [int(i) for i in ids]
+        # The foreign key cascades deletion to family member assignments.
         self._session.query(PreferenceRow).filter(PreferenceRow.id.in_(int_ids)).delete(
             synchronize_session=False
         )

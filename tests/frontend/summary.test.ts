@@ -1,0 +1,27 @@
+import { expect, it, vi } from 'vitest';
+import { mount, flushPromises } from '@vue/test-utils';
+import MealSummaryView from '@/views/MealSummaryView.vue';
+import MealCard from '@/components/summary/MealCard.vue';
+import NestedRecipeCard from '@/components/summary/NestedRecipeCard.vue';
+import SummaryFooter from '@/components/summary/SummaryFooter.vue';
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
+import * as api from '@/api/client';
+import { list } from './helpers';
+vi.mock('@/api/client');
+vi.mock('vue-router', () => ({ useRoute: () => ({ params: { id: '7' } }), useRouter: () => ({ push: vi.fn() }) }));
+it('summary sends original selected slot indices and excluded subrecipes, including standalone products', async () => {
+    vi.mocked(api.fetchMealTypes).mockResolvedValue([]);
+    vi.mocked(api.fetchMealSummary).mockResolvedValue({ menu_id: 7, menu_name: 'Week', recipes: [{ recipe_id: 1, recipe_name: 'Bread', total_servings: 4, base_servings: 2, weight: 200, total_pieces: null, pieces_per_portion: null, occurrences: [{ slot_index: 4, day: 0, meal_type_id: 1, servings: 2 }, { slot_index: 9, day: 1, meal_type_id: 1, servings: 2 }], ingredients: [{ product_name: 'Sauce', quantity_amount: 2, quantity_unit: 'serv', sub_recipe_id: 2, sub_recipe_name: 'Sauce', sub_ingredients: [] }] }], products: [{ product_id: 1, product_name: 'Milk', total_quantity: 100, unit: 'ml', occurrences: [{ slot_index: 12, day: 0, meal_type_id: 1, quantity: 100, unit: 'ml' }] }] } as any);
+    vi.mocked(api.generateFilteredShoppingList).mockResolvedValue(list() as any);
+    const w = mount(MealSummaryView, { global: { stubs: { MealCard: true, NestedRecipeCard: true, StandaloneProductCard: true, SummaryHeader: true, SummaryFooter: true, ConfirmDialog: true, SummaryExportModal: true } } });
+    await flushPromises();
+    w.getComponent(MealCard).vm.$emit('toggle-slot', 4);
+    w.getComponent(NestedRecipeCard).vm.$emit('toggle');
+    await flushPromises();
+    w.getComponent(SummaryFooter).vm.$emit('generate');
+    await flushPromises();
+    expect(api.generateFilteredShoppingList).not.toHaveBeenCalled();
+    w.getComponent(ConfirmDialog).vm.$emit('confirm');
+    await flushPromises();
+    expect(api.generateFilteredShoppingList).toHaveBeenCalledWith(7, [9, 12], [2]);
+});

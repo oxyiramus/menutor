@@ -55,7 +55,7 @@ def list_product_categories(
     container: Annotated[ApplicationContainer, Depends(get_container)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> list[ActiveCategoryResponse]:
-    categories = container.list_product_categories.execute()
+    categories = container.list_product_categories.execute(user.id)
     return [active_category_to_response(c) for c in categories]
 
 

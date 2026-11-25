@@ -1,3 +1,4 @@
+import { accountSessionSignal } from '@/api/accountSession'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import {
@@ -31,26 +32,28 @@ export const useMenuStore = defineStore('menus', () => {
   }
 
   async function load() {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       menus.value = await fetchMenus()
     } catch {
-      useToastStore().show('Ошибка загрузки меню', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки меню', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function select(id: number) {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       const menu = await fetchMenu(id)
       _updateMenu(menu)
       selectedId.value = id
     } catch {
-      useToastStore().show('Ошибка загрузки меню', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки меню', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
@@ -152,5 +155,11 @@ export const useMenuStore = defineStore('menus', () => {
     await create(_autoMenuName())
   }
 
-  return { menus, sortedMenus, current, selectedId, loading, load, select, create, remove, copy, addSlotToMenu, removeSlotFromMenu, moveSlot, reorderSlots, mergeItemsIntoSlot, clear, ensureMenuSelected }
+  function reset() {
+    menus.value = []
+    selectedId.value = null
+    loading.value = false
+  }
+
+  return { reset, menus, sortedMenus, current, selectedId, loading, load, select, create, remove, copy, addSlotToMenu, removeSlotFromMenu, moveSlot, reorderSlots, mergeItemsIntoSlot, clear, ensureMenuSelected }
 })

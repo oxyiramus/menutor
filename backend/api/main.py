@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import dotenv_values
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -26,7 +27,7 @@ from backend.api.routers import shopping_list as shopping_list_router
 from backend.api.routers import (
     system,
 )
-from backend.composition_root import ApplicationContainer
+from backend.composition import ApplicationDatabase
 from backend.domain.exceptions import (
     AppError,
     AuthenticationError,
@@ -44,8 +45,28 @@ from backend.domain.exceptions import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    app.state.container = ApplicationContainer()
-    yield
+    database = ApplicationDatabase()
+    app.state.database = database
+    try:
+        yield
+    finally:
+        database.engine.dispose()
+
+
+def _cors_allowed_origins() -> list[str]:
+    key = "CORS_ALLOWED_ORIGINS"
+    configured = os.environ.get(key)
+    if configured is None:
+        env_file = Path(__file__).resolve().parents[2] / ".config" / ".env"
+        configured = dotenv_values(env_file).get(key)
+    origins = [
+        origin for value in (configured or "").split(",") if (origin := value.strip())
+    ]
+    if any("*" in origin or origin == "null" for origin in origins):
+        raise ValueError(
+            f"{key} must contain explicit origins without wildcards or null"
+        )
+    return origins
 
 
 app = FastAPI(
@@ -59,25 +80,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_allowed_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.middleware("http")
-async def rollback_on_error(request: Request, call_next):  # type: ignore[no-untyped-def]
-    try:
-        response = await call_next(request)
-        return response
-    except Exception:
-        container = getattr(request.app.state, "container", None)
-        if container is not None:
-            session = getattr(container, "_session", None)
-            if session is not None:
-                session.rollback()
-        raise
 
 
 # ── Exception handlers ────────────────────────────────────────────

@@ -28,7 +28,7 @@ def _wire_preferences(infra: _Infrastructure) -> dict[str, Any]:
     return {
         "create_preference": CreatePreference(pref_repo),
         "update_preference": UpdatePreference(pref_repo),
-        "delete_preference": DeletePreference(pref_repo, infra.family_repo),
+        "delete_preference": DeletePreference(pref_repo),
         "get_preference": GetEntity(pref_repo),
         "list_preferences": ListEntities(pref_repo),
         "match_recipe_preferences": MatchRecipePreferences(

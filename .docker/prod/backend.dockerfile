@@ -22,4 +22,6 @@ USER zhdanova
 
 LABEL org.opencontainers.image.source https://github.com/zhdanovaekaterina/menutor
 
-CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENV FORWARDED_ALLOW_IPS=""
+
+CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

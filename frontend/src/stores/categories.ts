@@ -1,3 +1,4 @@
+import { accountSessionSignal } from '@/api/accountSession'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
@@ -22,13 +23,14 @@ export const useCategoryStore = defineStore('categories', () => {
   }
 
   async function load(type: 'product' | 'recipe') {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       list(type).value = await fetchAllCategories(type)
     } catch {
-      useToastStore().show('Ошибка загрузки категорий', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки категорий', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
@@ -79,5 +81,11 @@ export const useCategoryStore = defineStore('categories', () => {
     return list(type).value.find((c) => c.id === id)
   }
 
-  return { productCategories, recipeCategories, loading, list, load, create, edit, remove, activate, isUsed, moveAndDelete, findById }
+  function reset() {
+    productCategories.value = []
+    recipeCategories.value = []
+    loading.value = false
+  }
+
+  return { reset, productCategories, recipeCategories, loading, list, load, create, edit, remove, activate, isUsed, moveAndDelete, findById }
 })

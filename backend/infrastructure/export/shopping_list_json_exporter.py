@@ -72,7 +72,7 @@ class ShoppingListJsonExporter:
             self._to_dict(shopping_list), ensure_ascii=False, indent=2
         ).encode("utf-8")
 
-    def example_bytes(self) -> bytes:
+    def example_bytes(self, *, category_id: int | None = None) -> bytes:
         example: dict[str, Any] = {
             "title": "Список покупок",
             "categories": [

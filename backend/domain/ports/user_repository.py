@@ -13,3 +13,12 @@ class UserRepository(ABC):
 
     @abstractmethod
     def save(self, user: User) -> User: ...
+
+    @abstractmethod
+    def update_nickname(self, user_id: UserId, nickname: str) -> User: ...
+
+    @abstractmethod
+    def change_password_and_revoke_sessions(
+        self, user_id: UserId, expected_hash: str, new_hash: str
+    ) -> bool:
+        """Atomically update the verified password hash and revoke refresh sessions."""

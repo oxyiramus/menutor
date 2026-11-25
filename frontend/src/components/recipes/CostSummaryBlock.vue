@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import type { CostPreviewResponse } from '@/api/types'
 import { previewRecipeCost } from '@/api/client'
 
@@ -16,18 +16,22 @@ const costLoading = ref(false)
 const breakdownExpanded = ref(false)
 
 let debounceTimer: ReturnType<typeof setTimeout>
+let requestVersion = 0
+onUnmounted(() => { clearTimeout(debounceTimer); requestVersion++ })
 
 async function fetchCost() {
+  const version = requestVersion
   const validIngredients = props.ingredients.filter(
     (i) => i.product_id != null || i.sub_recipe_id != null
   )
   if (validIngredients.length === 0) {
+    costLoading.value = false
     costData.value = null
     return
   }
   costLoading.value = true
   try {
-    costData.value = await previewRecipeCost({
+    const result = await previewRecipeCost({
       ingredients: validIngredients.map((i) => ({
         product_id: i.product_id,
         sub_recipe_id: i.sub_recipe_id,
@@ -42,10 +46,11 @@ async function fetchCost() {
       total_pieces: props.isPiecesMode ? props.totalPieces : null,
       pieces_per_portion: props.isPiecesMode ? props.piecesPerPortion : null,
     })
+    if (version === requestVersion) costData.value = result
   } catch {
-    costData.value = null
+    if (version === requestVersion) costData.value = null
   } finally {
-    costLoading.value = false
+    if (version === requestVersion) costLoading.value = false
   }
 }
 
@@ -58,6 +63,7 @@ watch(
     () => props.isPiecesMode,
   ],
   () => {
+    requestVersion++
     clearTimeout(debounceTimer)
     debounceTimer = setTimeout(fetchCost, 300)
   },

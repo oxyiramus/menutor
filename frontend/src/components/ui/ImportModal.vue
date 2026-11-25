@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { accountSessionSignal } from '@/api/accountSession'
 import { importEntities } from '@/api/client'
 import type { ImportResult } from '@/api/types'
 
@@ -38,12 +39,14 @@ function onFileChange(e: Event) {
 
 async function onImport() {
   if (!selectedFile.value) return
+  const session = accountSessionSignal()
   const ext = selectedFile.value.name.split('.').pop()?.toLowerCase() ?? ''
   loading.value = true
   error.value = ''
   result.value = null
   try {
     const res = await importEntities(props.entityType, ext, selectedFile.value)
+    if (session.aborted) return
     result.value = res
     emit('imported', res)
   } catch (e: any) {

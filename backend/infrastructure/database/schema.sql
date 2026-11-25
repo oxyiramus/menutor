@@ -1,3 +1,12 @@
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    nickname TEXT NOT NULL DEFAULT '',
+    hashed_password TEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    last_login_at DATETIME
+);
+
 -- Unit-of-measurement catalog (weight, volume, count subtypes)
 CREATE TABLE IF NOT EXISTS units (
     name       TEXT PRIMARY KEY,
@@ -7,19 +16,26 @@ CREATE TABLE IF NOT EXISTS units (
 -- Recipe category catalog
 CREATE TABLE IF NOT EXISTS recipe_categories (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
-    name   TEXT UNIQUE NOT NULL,
-    active INTEGER NOT NULL DEFAULT 1
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name   TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    color  VARCHAR(7),
+    UNIQUE (user_id, name)
 );
 
 -- Product category catalog
 CREATE TABLE IF NOT EXISTS product_categories (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
-    name   TEXT UNIQUE NOT NULL,
-    active INTEGER NOT NULL DEFAULT 1
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name   TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    color  VARCHAR(7),
+    UNIQUE (user_id, name)
 );
 
 -- Product / ingredient catalog
 CREATE TABLE IF NOT EXISTS products (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     name                    TEXT    NOT NULL,
     category_id             INTEGER NOT NULL REFERENCES product_categories(id),
@@ -33,6 +49,7 @@ CREATE TABLE IF NOT EXISTS products (
 
 -- Recipe header
 CREATE TABLE IF NOT EXISTS recipes (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     name         TEXT    NOT NULL,
     category_id  INTEGER NOT NULL REFERENCES recipe_categories(id),

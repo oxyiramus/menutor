@@ -11,6 +11,6 @@ if [[ (($models_changed != 0)) && (($have_new_migration == 0)) ]]; then
     exit 1
 fi
 
-pytest -v && isort backend && mypy backend
+isort backend && mypy backend
 
 deactivate

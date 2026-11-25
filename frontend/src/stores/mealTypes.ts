@@ -1,3 +1,4 @@
+import { accountSessionSignal } from '@/api/accountSession'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { MealType, MealTypeCreate, MealTypeUsageResponse } from '@/api/types'
@@ -27,23 +28,26 @@ export const useMealTypeStore = defineStore('mealTypes', () => {
   )
 
   async function load() {
+    const session = accountSessionSignal()
     loading.value = true
     try {
       items.value = await fetchMealTypes()
     } catch {
-      useToastStore().show('Ошибка загрузки типов приемов пищи', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка загрузки типов приемов пищи', 'error')
     } finally {
-      loading.value = false
+      if (!session.aborted) loading.value = false
     }
   }
 
   async function create(data: MealTypeCreate): Promise<MealType | null> {
+    const session = accountSessionSignal()
     try {
       const mt = await createMealType(data)
       items.value.push(mt)
       useToastStore().show('Тип приема пищи создан', 'success')
       return mt
     } catch (e: any) {
+      if (session.aborted) return null
       const msg = e.response?.data?.detail ?? 'Ошибка создания'
       useToastStore().show(msg, 'error')
       return null
@@ -51,6 +55,7 @@ export const useMealTypeStore = defineStore('mealTypes', () => {
   }
 
   async function update(id: number, data: MealTypeCreate): Promise<MealType | null> {
+    const session = accountSessionSignal()
     try {
       const mt = await updateMealType(id, data)
       const idx = items.value.findIndex((t) => t.id === id)
@@ -58,6 +63,7 @@ export const useMealTypeStore = defineStore('mealTypes', () => {
       useToastStore().show('Тип приема пищи обновлён', 'success')
       return mt
     } catch (e: any) {
+      if (session.aborted) return null
       const msg = e.response?.data?.detail ?? 'Ошибка обновления'
       useToastStore().show(msg, 'error')
       return null
@@ -65,12 +71,14 @@ export const useMealTypeStore = defineStore('mealTypes', () => {
   }
 
   async function remove(id: number): Promise<boolean> {
+    const session = accountSessionSignal()
     try {
       await deleteMealType(id)
       items.value = items.value.filter((t) => t.id !== id)
       useToastStore().show('Тип приема пищи удалён', 'success')
       return true
     } catch (e: any) {
+      if (session.aborted) return false
       const msg = e.response?.data?.detail ?? 'Ошибка удаления'
       useToastStore().show(msg, 'error')
       return false
@@ -78,13 +86,19 @@ export const useMealTypeStore = defineStore('mealTypes', () => {
   }
 
   async function checkUsage(id: number): Promise<MealTypeUsageResponse | null> {
+    const session = accountSessionSignal()
     try {
       return await fetchMealTypeUsage(id)
     } catch {
-      useToastStore().show('Ошибка проверки использования', 'error')
+      if (!session.aborted) useToastStore().show('Ошибка проверки использования', 'error')
       return null
     }
   }
 
-  return { items, sorted, customCount, loading, load, create, update, remove, checkUsage }
+  function reset() {
+    items.value = []
+    loading.value = false
+  }
+
+  return { reset, items, sorted, customCount, loading, load, create, update, remove, checkUsage }
 })

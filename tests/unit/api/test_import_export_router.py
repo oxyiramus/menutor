@@ -3,8 +3,10 @@
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from backend.api.routers.import_export import import_entities
 from backend.domain.exceptions import ImportValidationError
 from backend.domain.value_objects.import_result import ImportResult
 
@@ -86,6 +88,22 @@ class TestExportExample:
 
 
 class TestImportEntities:
+    def test_oversized_upload_reads_at_most_limit_plus_one(self, container, monkeypatch):
+        monkeypatch.setenv("IMPORT_MAX_FILE_BYTES", "4")
+        upload = MagicMock(size=None)
+        upload.file.read.return_value = b"12345"
+        with pytest.raises(HTTPException) as error:
+            import_entities(
+                entity_type="products",
+                format="csv",
+                file=upload,
+                container=container,
+                user=MagicMock(),
+            )
+        assert error.value.status_code == 413
+        upload.file.read.assert_called_once_with(5)
+        container.import_entities.execute.assert_not_called()
+
     def test_import_products_csv_returns_result(
         self, client: TestClient, container: MagicMock
     ) -> None:

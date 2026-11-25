@@ -8,8 +8,14 @@ services:
         - ghcr.io/oxyiramus/menutor-frontend:$VERSION
     image: ghcr.io/oxyiramus/menutor-frontend:$VERSION
     container_name: frontend
+    networks:
+      default:
+        ipv4_address: 172.29.103.3
     ports:
       - '127.0.0.1:8080:80'
+    configs:
+      - source: proxy_trust
+        target: /etc/nginx/menutor/proxy-trust.conf
     env_file:
       - .config/.env
     depends_on:
@@ -25,8 +31,8 @@ services:
         - ghcr.io/oxyiramus/menutor-backend:$VERSION
     image: ghcr.io/oxyiramus/menutor-backend:$VERSION
     container_name: backend
-    ports:
-      - '127.0.0.1:8000:8000'
+    environment:
+      FORWARDED_ALLOW_IPS: '172.29.103.3'
     env_file:
       - .config/.env
     depends_on:
@@ -59,3 +65,15 @@ services:
 
 volumes:
   postgres_data:
+
+configs:
+  proxy_trust:
+    file: .config/proxy-trust.conf
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.29.103.0/24
+          gateway: 172.29.103.1
+          ip_range: 172.29.103.128/25

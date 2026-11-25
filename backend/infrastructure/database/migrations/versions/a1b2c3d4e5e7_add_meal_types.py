@@ -66,7 +66,7 @@ def upgrade() -> None:
         conn.execute(
             sa.text(
                 "INSERT INTO meal_types (user_id, name, time, is_system, sort_order) "
-                "VALUES (:uid, :name, '12:00', 0, 10)"
+                "VALUES (:uid, :name, '12:00', false, 10)"
             ),
             {"uid": user_id, "name": meal_type_name},
         )

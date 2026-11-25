@@ -12,6 +12,10 @@ class RefreshTokenRepository(ABC):
     def get_by_token_hash(self, token_hash: str) -> RefreshToken | None: ...
 
     @abstractmethod
+    def rotate(self, token_hash: str, replacement: RefreshToken) -> bool:
+        """Consume a valid token and save its replacement atomically."""
+
+    @abstractmethod
     def revoke(self, token_hash: str) -> None: ...
 
     @abstractmethod

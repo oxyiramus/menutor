@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from backend.application.use_cases.crud_base import load_owned
 from backend.domain.entities.preference import Preference
 from backend.domain.exceptions import DuplicateNameError
-from backend.domain.ports.family_member_repository import FamilyMemberRepository
 from backend.domain.ports.preference_repository import PreferenceRepository
 from backend.domain.value_objects.preference_enums import PreferenceMode, PreferenceType
 from backend.domain.value_objects.types import (
@@ -71,23 +70,12 @@ class UpdatePreference:
 
 
 class DeletePreference:
-    def __init__(
-        self,
-        preference_repo: PreferenceRepository,
-        family_repo: FamilyMemberRepository,
-    ) -> None:
+    def __init__(self, preference_repo: PreferenceRepository) -> None:
         self._preference_repo = preference_repo
-        self._family_repo = family_repo
 
     def execute(self, preference_id: PreferenceId, user_id: UserId) -> None:
         existing = self._preference_repo.get_by_id(preference_id)
         if existing is None or existing.user_id != user_id:
             return  # silently ignore
-
-        members = self._family_repo.find_all(user_id)
-        for member in members:
-            if preference_id in member.preference_ids:
-                member.preference_ids.remove(preference_id)
-                self._family_repo.save(member)
 
         self._preference_repo.delete([preference_id])

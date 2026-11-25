@@ -21,6 +21,10 @@ const state = ref<ContextMenuState>({
   items: [],
 })
 
+export function clearContextMenu() {
+  state.value = { visible: false, x: 0, y: 0, items: [] }
+}
+
 export function useContextMenu() {
   function open(x: number, y: number, items: ContextMenuItem[]) {
     state.value = { visible: true, x, y, items }
