@@ -13,6 +13,12 @@ def load_app() -> FastAPI:
     return run_path(spec.origin)["app"]
 
 
+async def send_request(method: str, path: str, headers: dict[str, str]) -> httpx.Response:
+    transport = httpx.ASGITransport(app=load_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.request(method, path, headers=headers)
+
+
 @pytest.mark.parametrize("preflight", [False, True], ids=["response", "preflight"])
 @pytest.mark.parametrize(
     ("allowed_origins", "origin", "expected_origin"),
@@ -37,29 +43,44 @@ def test_cors_headers(monkeypatch, allowed_origins, origin, expected_origin, pre
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", allowed_origins)
     headers = {"Origin": origin}
 
-    async def request() -> httpx.Response:
-        transport = httpx.ASGITransport(app=load_app())
-        async with httpx.AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as client:
-            if preflight:
-                headers.update(
-                    {
-                        "Access-Control-Request-Method": "POST",
-                        "Access-Control-Request-Headers": "content-type, authorization",
-                    }
-                )
-                return await client.options("/api/auth/refresh", headers=headers)
-            return await client.get("/openapi.json", headers=headers)
-
-    response = asyncio.run(request())
+    if preflight:
+        headers["Access-Control-Request-Method"] = "POST"
+        headers["Access-Control-Request-Headers"] = "content-type, authorization"
+        response = asyncio.run(send_request("OPTIONS", "/api/auth/refresh", headers))
+    else:
+        response = asyncio.run(send_request("GET", "/openapi.json", headers))
     assert response.status_code == (400 if preflight and not expected_origin else 200)
     assert response.headers.get("Access-Control-Allow-Origin") == expected_origin
     assert "Access-Control-Allow-Credentials" not in response.headers
 
 
-@pytest.mark.parametrize("origins", ["*", "https://app.example, *", "null"])
+@pytest.mark.parametrize(
+    "origins", ["*", "https://app.example, *", "https://*.example", "null"]
+)
 def test_rejects_unsafe_origin_config(monkeypatch, origins):
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", origins)
     with pytest.raises(ValueError, match="CORS_ALLOWED_ORIGINS"):
         load_app()
+
+
+@pytest.mark.parametrize(
+    ("file_config", "process_config", "expected_origin"),
+    [
+        ({}, None, None),
+        ({"CORS_ALLOWED_ORIGINS": "https://app.example"}, None, "https://app.example"),
+        ({"CORS_ALLOWED_ORIGINS": "https://app.example"}, "", None),
+    ],
+)
+def test_cors_configuration_precedence(
+    monkeypatch, file_config, process_config, expected_origin
+):
+    monkeypatch.setattr("dotenv.dotenv_values", lambda path: file_config)
+    monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
+    if process_config is not None:
+        monkeypatch.setenv("CORS_ALLOWED_ORIGINS", process_config)
+
+    response = asyncio.run(
+        send_request("GET", "/openapi.json", {"Origin": "https://app.example"})
+    )
+    assert response.status_code == 200
+    assert response.headers.get("Access-Control-Allow-Origin") == expected_origin

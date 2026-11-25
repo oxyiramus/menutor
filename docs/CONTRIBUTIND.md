@@ -90,6 +90,14 @@ pytest tests/ -q
 
 Тесты PostgreSQL в `tests/integration/test_audit_postgresql.py` используют Testcontainers и требуют доступный Docker. Многие остальные тесты работают с SQLite.
 
+Для регрессии CORS и Bearer-авторизации запустите из корня репозитория с пустым списком разрешённых origins:
+
+```sh
+CORS_ALLOWED_ORIGINS='' python -m pytest -q tests/unit/api/test_cors.py tests/integration/test_audit_http.py::test_real_http_register_write_read_calculate_and_error
+```
+
+Ожидается `20 passed`. CORS-тесты подставляют свои настройки. Интеграционный тест создаёт временную SQLite-базу, задаёт тестовый JWT-ключ и регистрирует аккаунт. Подготавливать данные вручную не требуется.
+
 Для проверки запуска с JWT-ключом выполните `python -m pytest -q tests/integration/test_jwt_startup.py`. Ожидается `9 passed, 1 skipped`. Для полного прогона задайте `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой базы PostgreSQL и правом создавать схемы. Тест сам создаст и удалит временную схему. Ожидается `10 passed`.
 
 Для проверки границ сессии задайте `TEST_PERSONAL_CATEGORIES_POSTGRES_URL` с URL отдельной тестовой БД PostgreSQL. Роли подключения нужно право создавать схемы. Тест создаёт временную схему и два аккаунта, удерживает первый запрос в обработчике и выполняет второй до возобновления первого. Ожидаемый результат команды — `1 passed`.

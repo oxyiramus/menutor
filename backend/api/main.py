@@ -69,22 +69,6 @@ def _cors_allowed_origins() -> list[str]:
     return origins
 
 
-def _cors_allowed_origins() -> list[str]:
-    key = "CORS_ALLOWED_ORIGINS"
-    configured = os.environ.get(key)
-    if configured is None:
-        env_file = Path(__file__).resolve().parents[2] / ".config" / ".env"
-        configured = dotenv_values(env_file).get(key)
-    origins = [
-        origin for value in (configured or "").split(",") if (origin := value.strip())
-    ]
-    if any("*" in origin or origin == "null" for origin in origins):
-        raise ValueError(
-            f"{key} must contain explicit origins without wildcards or null"
-        )
-    return origins
-
-
 app = FastAPI(
     title="Menutor API",
     description="API планировщика меню",
